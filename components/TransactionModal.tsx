@@ -162,11 +162,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || !categoryId || !accountId) return;
+    // Валидация: категория обязательна ТОЛЬКО если это НЕ долговая операция
+    if (!amount || (!categoryId && !isDebtRelated) || !accountId) return;
     
     onSave({
       amount: parseFloat(amount),
-      categoryId,
+      categoryId: categoryId || 'debt_system', // Используем системный ID если категория не выбрана
       accountId,
       note: isDebtRelated ? `[ДОЛГ] ${note}` : note,
       date: new Date(date).toISOString(),
@@ -230,9 +231,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
                 className={`w-full h-11 px-4 rounded-xl border flex items-center justify-between transition-all ${categoryId ? 'bg-indigo-50 border-indigo-200 shadow-inner' : 'bg-slate-50 border-slate-100'}`}
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="text-lg">{selectedCategory?.icon || '📦'}</span>
+                  <span className="text-lg">{selectedCategory?.icon || (isDebtRelated ? '🤝' : '📦')}</span>
                   <span className={`text-[11px] font-black uppercase tracking-tight ${selectedCategory ? 'text-indigo-900' : 'text-slate-400'}`}>
-                    {selectedCategory?.name || 'Выбрать категорию'}
+                    {selectedCategory?.name || (isDebtRelated ? 'Без категории (Долг)' : 'Выбрать категорию')}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -374,7 +375,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
               </div>
             </div>
 
-            <button type="submit" disabled={!amount || !categoryId || !accountId || isProcessing || (isDebtRelated && !selectedDebtId && !newDebtName)} className="w-full h-14 bg-slate-900 text-white rounded-2xl font-black text-[12px] uppercase tracking-widest shadow-xl active:scale-[0.98] transition-all disabled:opacity-20 mt-1 mb-2">
+            <button 
+              type="submit" 
+              disabled={!amount || (!categoryId && !isDebtRelated) || !accountId || isProcessing || (isDebtRelated && !selectedDebtId && !newDebtName)} 
+              className="w-full h-14 bg-slate-900 text-white rounded-2xl font-black text-[12px] uppercase tracking-widest shadow-xl active:scale-[0.98] transition-all disabled:opacity-20 mt-1 mb-2"
+            >
               {initialData ? 'Обновить' : 'Сохранить'}
             </button>
           </form>
