@@ -1,8 +1,8 @@
 
 {
   "name": "finflow-mistral",
-  "version": "2.2.0",
-  "description": "Telegram Mini App with Vite, Mistral AI and MongoDB",
+  "version": "2.3.0",
+  "description": "Telegram Mini App with Vite, Mistral AI, MongoDB and QR Support",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -20,7 +20,8 @@
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.0",
     "lucide-react": "^0.460.0",
-    "react-markdown": "^9.0.1"
+    "react-markdown": "^9.0.1",
+    "jsqr": "^1.4.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
