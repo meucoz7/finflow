@@ -213,7 +213,6 @@ const AppContent: React.FC = () => {
           return d;
         });
       } else if (newDebtName && action === 'increase') {
-        // Создаем новый долг на лету
         const debtType = finalTx.type === 'expense' ? 'they_owe' : 'i_owe';
         const newDebt: Debt = {
           id: `debt_${Date.now()}`,
@@ -273,6 +272,7 @@ const AppContent: React.FC = () => {
           isOpen={isModalOpen} 
           onClose={() => { setIsModalOpen(false); setEditingTransaction(null); }} 
           onSave={handleSaveTransaction}
+          onDelete={handleDeleteTransaction}
           categories={state.categories}
           accounts={state.accounts}
           debts={state.debts}

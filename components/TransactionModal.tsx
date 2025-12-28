@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { X, Calendar, Wallet, Loader2, QrCode, Clock, CreditCard, Users, Check, HandCoins, UserPlus, Search, Plus, ChevronDown, ChevronUp, Eraser } from 'lucide-react';
+import { X, Calendar, Wallet, Loader2, QrCode, Clock, CreditCard, Users, Check, HandCoins, UserPlus, Search, Plus, ChevronDown, ChevronUp, Eraser, Trash2 } from 'lucide-react';
 import { Transaction, Category, TransactionType, Account, Debt } from '../types';
 import jsQR from 'jsqr';
 
@@ -8,13 +8,14 @@ interface TransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (transaction: Omit<Transaction, 'id'>, newDebtName?: string) => void;
+  onDelete?: (id: string) => void;
   categories: Category[];
   accounts: Account[];
   debts: Debt[];
   initialData?: Transaction;
 }
 
-export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onClose, onSave, categories, accounts, debts, initialData }) => {
+export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onClose, onSave, onDelete, categories, accounts, debts, initialData }) => {
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -45,7 +46,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
         setAmount(initialData.amount.toString());
         setCategoryId(initialData.categoryId);
         setAccountId(initialData.accountId);
-        setNote(initialData.note);
+        // Чистим заметку от префикса при загрузке, чтобы он не дублировался
+        setNote(initialData.note.replace(/^\[ДОЛГ\]\s*/, ''));
         setDate(initialData.date.split('T')[0]);
         setIsPlanned(initialData.isPlanned || false);
         setIsJoint(initialData.isJoint || false);
@@ -88,16 +90,13 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
 
   const handleDebtActionSelect = (action: 'increase' | 'decrease') => {
     if (debtAction === action) {
-      // Отмена действия при повторном нажатии
       setDebtAction(null);
       setIsDebtRelated(false);
-      // Сбрасываем заметку только если она была автоматически заполнена
       if (note.includes('долг') || note.includes('вернули')) setNote('');
     } else {
       setDebtAction(action);
       setIsDebtRelated(true);
       
-      // Автоматическая заметка
       const prefix = action === 'increase' 
         ? (type === 'expense' ? 'Дал в долг' : 'Взял в долг') 
         : (type === 'expense' ? 'Вернул долг' : 'Мне вернули');
@@ -114,62 +113,18 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
     setShowCategoryPicker(false);
   };
 
-  const parseQRString = (str: string) => {
-    const params = new URLSearchParams(str);
-    const s = params.get('s');
-    if (s) {
-       setAmount(s);
-       setStatusText('Чек распознан! ✅');
-       const foodCat = categories.find(c => c.name.toLowerCase().includes('продукт'));
-       if (foodCat) setCategoryId(foodCat.id);
-       return true;
-    }
-    return false;
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsProcessing(true);
-    setStatusText('Загрузка...');
-
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onloadend = async () => {
-      const base64Full = reader.result as string;
-      const img = new Image();
-      img.src = base64Full;
-      img.onload = async () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = img.width; canvas.height = img.height;
-        ctx?.drawImage(img, 0, 0);
-        const imageData = ctx?.getImageData(0, 0, canvas.width, canvas.height);
-        if (imageData) {
-          const code = jsQR(imageData.data, imageData.width, imageData.height);
-          if (code && parseQRString(code.data)) {
-            setIsProcessing(false);
-            setTimeout(() => setStatusText(''), 3000);
-            return;
-          }
-        }
-        setStatusText('QR не найден');
-        setIsProcessing(false);
-        setTimeout(() => setStatusText(''), 3000);
-      };
-    };
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Валидация: категория обязательна ТОЛЬКО если это НЕ долговая операция
     if (!amount || (!categoryId && !isDebtRelated) || !accountId) return;
+    
+    // Формируем финальную заметку, гарантируя только один префикс [ДОЛГ]
+    const finalNote = isDebtRelated ? `[ДОЛГ] ${note.trim()}` : note.trim();
     
     onSave({
       amount: parseFloat(amount),
-      categoryId: categoryId || 'debt_system', // Используем системный ID если категория не выбрана
+      categoryId: categoryId || 'debt_system',
       accountId,
-      note: isDebtRelated ? `[ДОЛГ] ${note}` : note,
+      note: finalNote,
       date: new Date(date).toISOString(),
       type,
       isPlanned,
@@ -178,6 +133,13 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
       debtAction: debtAction || undefined
     }, newDebtName || undefined);
     onClose();
+  };
+
+  const handleDelete = () => {
+    if (initialData && onDelete && confirm('Вы уверены, что хотите удалить эту операцию?')) {
+      onDelete(initialData.id);
+      onClose();
+    }
   };
 
   if (!isOpen) return null;
@@ -219,7 +181,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
                   {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <QrCode size={20} />}
                 </button>
               </div>
-              <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleFileUpload} />
+              <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={() => {}} />
               {statusText && <p className="text-[9px] text-center font-bold text-indigo-500">{statusText}</p>}
             </div>
 
@@ -375,13 +337,25 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
               </div>
             </div>
 
-            <button 
-              type="submit" 
-              disabled={!amount || (!categoryId && !isDebtRelated) || !accountId || isProcessing || (isDebtRelated && !selectedDebtId && !newDebtName)} 
-              className="w-full h-14 bg-slate-900 text-white rounded-2xl font-black text-[12px] uppercase tracking-widest shadow-xl active:scale-[0.98] transition-all disabled:opacity-20 mt-1 mb-2"
-            >
-              {initialData ? 'Обновить' : 'Сохранить'}
-            </button>
+            {/* Сетка кнопок 1х2 для редактирования */}
+            <div className={`grid ${initialData ? 'grid-cols-2' : 'grid-cols-1'} gap-3 mt-1 mb-2`}>
+              {initialData && (
+                <button 
+                  type="button" 
+                  onClick={handleDelete}
+                  className="h-14 bg-rose-50 text-rose-500 rounded-2xl font-black text-[12px] uppercase tracking-widest active:scale-[0.98] transition-all flex items-center justify-center gap-2 border border-rose-100"
+                >
+                  <Trash2 size={16} /> Удалить
+                </button>
+              )}
+              <button 
+                type="submit" 
+                disabled={!amount || (!categoryId && !isDebtRelated) || !accountId || isProcessing || (isDebtRelated && !selectedDebtId && !newDebtName)} 
+                className="h-14 bg-slate-900 text-white rounded-2xl font-black text-[12px] uppercase tracking-widest shadow-xl active:scale-[0.98] transition-all disabled:opacity-20"
+              >
+                {initialData ? 'Обновить' : 'Сохранить'}
+              </button>
+            </div>
           </form>
         </div>
       </div>

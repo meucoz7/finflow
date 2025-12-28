@@ -243,6 +243,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
             filteredTransactions.map(t => {
               const cat = categories.find(c => c.id === t.categoryId);
               const acc = accounts.find(a => a.id === t.accountId);
+              const linkedDebt = debts.find(d => d.id === t.linkedDebtId);
+              
+              // Если это долг, показываем имя человека вместо названия категории
+              const displayName = linkedDebt ? linkedDebt.personName : (cat?.name || 'Операция');
+              const displayIcon = linkedDebt ? (linkedDebt.isBank ? '🏦' : '🤝') : (cat?.icon || '📦');
+
               return (
                 <div 
                   key={t.id} 
@@ -252,12 +258,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
                   <div className="flex items-center gap-4">
                     <div 
                       className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shadow-inner group-hover:rotate-6 transition-transform"
-                      style={{ backgroundColor: `${cat?.color}15`, color: cat?.color }}
+                      style={{ backgroundColor: `${cat?.color || '#6366f1'}15`, color: cat?.color || '#6366f1' }}
                     >
-                      {cat?.icon || '📦'}
+                      {displayIcon}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-bold text-slate-900 text-[14px] leading-tight truncate uppercase tracking-tight">{cat?.name}</p>
+                      <p className="font-bold text-slate-900 text-[14px] leading-tight truncate uppercase tracking-tight">{displayName}</p>
                       <p className="text-[11px] text-slate-500 font-medium mt-0.5">
                         {acc?.name} • {new Date(t.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                       </p>
