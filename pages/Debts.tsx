@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { AppState, Debt } from '../types';
 import { Plus, Trash2, UserPlus, UserMinus, Landmark, Calendar, Info, AlertCircle, RefreshCw, Clock, Edit2, Edit3, X } from 'lucide-react';
 
-// Fix: Define the missing DebtsProps interface to resolve the compilation error.
 interface DebtsProps {
   state: AppState;
   onUpdateState: (newState: Partial<AppState>) => void;
@@ -53,7 +52,6 @@ const SwipeableDebtItem: React.FC<{
 
   return (
     <div className="relative overflow-hidden rounded-[2.2rem] h-[82px] touch-pan-y group">
-      {/* Кнопки действий (интегрированные в фон приложения) */}
       <div className="absolute inset-0 bg-slate-50 flex justify-end rounded-[2.2rem] overflow-hidden">
         <div className="flex h-full px-2 gap-2">
           <button 
@@ -79,7 +77,6 @@ const SwipeableDebtItem: React.FC<{
         </div>
       </div>
 
-      {/* Контентная часть */}
       <div 
         className="absolute inset-0 bg-white p-5 rounded-[2.2rem] flex justify-between items-center border border-slate-50 shadow-sm transition-transform duration-500 cubic-bezier(0.16, 1, 0.3, 1) z-10"
         style={{ transform: `translateX(${xPos}px)` }}
@@ -101,7 +98,9 @@ const SwipeableDebtItem: React.FC<{
           <div className="min-w-0">
             <h4 className="font-bold text-slate-900 text-[14px] uppercase truncate tracking-tight">{debt.personName}</h4>
             <div className="flex items-center gap-2 mt-0.5">
-              <p className="text-[9px] text-slate-400 font-bold uppercase">{debt.dueDate ? new Date(debt.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) : 'Без даты'}</p>
+              <p className="text-[9px] text-slate-400 font-bold uppercase">
+                {debt.dueDate ? new Date(debt.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) : 'Бессрочно'}
+              </p>
               {debt.isMonthly && <RefreshCw size={8} className="text-indigo-400" />}
               {debt.isBank && <span className="bg-amber-100 text-amber-700 text-[7px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter">Банк</span>}
             </div>
@@ -132,7 +131,7 @@ export const Debts: React.FC<DebtsProps> = ({ state, onUpdateState }) => {
     type: 'i_owe', 
     isBank: false, 
     isMonthly: false,
-    dueDate: new Date().toISOString().split('T')[0],
+    dueDate: '', // Убрали дату по умолчанию
     endDate: '',
     date: new Date().toISOString(), 
     description: ''
@@ -170,7 +169,7 @@ export const Debts: React.FC<DebtsProps> = ({ state, onUpdateState }) => {
       type: debt.type,
       isBank: debt.isBank,
       isMonthly: debt.isMonthly,
-      dueDate: debt.dueDate || new Date().toISOString().split('T')[0],
+      dueDate: debt.dueDate || '',
       endDate: debt.endDate || '',
       date: debt.date,
       description: debt.description
@@ -183,7 +182,7 @@ export const Debts: React.FC<DebtsProps> = ({ state, onUpdateState }) => {
     setEditingId(null);
     setNewDebt({ 
       personName: '', amount: 0, type: activeTab, isBank: false, isMonthly: false,
-      dueDate: new Date().toISOString().split('T')[0], endDate: '', date: new Date().toISOString(), description: '' 
+      dueDate: '', endDate: '', date: new Date().toISOString(), description: '' 
     });
   };
 
@@ -208,7 +207,6 @@ export const Debts: React.FC<DebtsProps> = ({ state, onUpdateState }) => {
         </button>
       </header>
 
-      {/* Main Stats Card */}
       <div className="bg-slate-900 rounded-[2rem] p-6 text-white shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl -mr-16 -mt-16"></div>
         <div className="relative z-10 flex justify-between items-center mb-6">
@@ -265,7 +263,7 @@ export const Debts: React.FC<DebtsProps> = ({ state, onUpdateState }) => {
                 <input 
                   type="text" 
                   placeholder={newDebt.isBank ? "Тинькофф, Сбер..." : "Александр..."} 
-                  className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-slate-900 outline-none text-sm border border-transparent focus:bg-white focus:ring-4 focus:ring-amber-50" 
+                  className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-slate-900 outline-none text-sm border border-transparent focus:bg-white focus:ring-4 focus:ring-amber-50 shadow-inner" 
                   value={newDebt.personName} 
                   onChange={e => setNewDebt({...newDebt, personName: e.target.value})} 
                 />
@@ -275,7 +273,7 @@ export const Debts: React.FC<DebtsProps> = ({ state, onUpdateState }) => {
                 <input 
                   type="number" 
                   placeholder="0" 
-                  className="w-full bg-slate-50 p-5 rounded-2xl font-black text-3xl outline-none" 
+                  className="w-full bg-slate-50 p-5 rounded-2xl font-black text-3xl outline-none shadow-inner" 
                   value={newDebt.amount || ''} 
                   onChange={e => setNewDebt({...newDebt, amount: parseFloat(e.target.value) || 0})} 
                 />
@@ -284,8 +282,8 @@ export const Debts: React.FC<DebtsProps> = ({ state, onUpdateState }) => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Дата платежа</label>
-                  <div className="bg-slate-50 rounded-2xl p-3 flex items-center gap-2 border border-transparent focus-within:bg-white focus-within:ring-4 focus-within:ring-amber-50 transition-all">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Дата платежа (опц.)</label>
+                  <div className="bg-slate-50 rounded-2xl p-3 flex items-center gap-2 border border-transparent focus-within:bg-white focus-within:ring-4 focus-within:ring-amber-50 transition-all shadow-inner relative group">
                     <Calendar size={14} className="text-slate-400" />
                     <input 
                       type="date" 
@@ -293,6 +291,14 @@ export const Debts: React.FC<DebtsProps> = ({ state, onUpdateState }) => {
                       value={newDebt.dueDate}
                       onChange={e => setNewDebt({...newDebt, dueDate: e.target.value})}
                     />
+                    {newDebt.dueDate && (
+                      <button 
+                        onClick={() => setNewDebt({...newDebt, dueDate: ''})}
+                        className="absolute right-2 p-1 text-slate-300 hover:text-rose-500"
+                      >
+                        <X size={12} strokeWidth={3} />
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-1">
@@ -310,7 +316,7 @@ export const Debts: React.FC<DebtsProps> = ({ state, onUpdateState }) => {
               {newDebt.isMonthly && (
                 <div className="space-y-1 animate-slide-up">
                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Дата окончания (опц.)</label>
-                  <div className="bg-slate-50 rounded-2xl p-3 flex items-center gap-2">
+                  <div className="bg-slate-50 rounded-2xl p-3 flex items-center gap-2 shadow-inner">
                     <Clock size={14} className="text-slate-400" />
                     <input 
                       type="date" 
@@ -358,7 +364,7 @@ export const Debts: React.FC<DebtsProps> = ({ state, onUpdateState }) => {
             <Info size={22} className="text-amber-400" />
          </div>
          <p className="text-[11px] font-bold leading-relaxed">
-            Все долги с указанной датой теперь автоматически синхронизируются со страницей <strong>Планирования</strong>.
+            Вы можете добавить долг без указания даты. В этом случае он будет считаться <strong>бессрочным</strong> и не попадет в календарь планирования.
          </p>
       </div>
     </div>
