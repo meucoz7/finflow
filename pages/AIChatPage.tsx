@@ -68,7 +68,7 @@ export const AIChatPage: React.FC<{ state: AppState }> = ({ state }) => {
 
   return (
     <div className="flex flex-col h-[100dvh] max-w-md mx-auto bg-[#f0f2f5] relative">
-      <header className="flex-shrink-0 px-4 py-3 bg-white/90 backdrop-blur-md border-b border-slate-200 flex items-center gap-3 z-50">
+      <header className="flex-shrink-0 px-4 pt-[calc(env(safe-area-inset-top,0px)+12px)] pb-3 bg-white/90 backdrop-blur-md border-b border-slate-200 flex items-center gap-3 z-50">
         <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center text-slate-500 rounded-full hover:bg-slate-100">
           <ChevronLeft size={24} />
         </button>

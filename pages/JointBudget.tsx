@@ -15,6 +15,7 @@ import {
   XCircle
 } from 'lucide-react';
 
+// Fix: Define the missing JointBudgetProps interface to resolve the compilation error.
 interface JointBudgetProps {
   state: AppState;
   onUpdateState: (newState: Partial<AppState>) => void;
@@ -73,7 +74,7 @@ export const JointBudget: React.FC<JointBudgetProps> = ({ state, onUpdateState }
   };
 
   return (
-    <div className="space-y-5 animate-slide-up pb-32">
+    <div className="space-y-5 animate-slide-up pb-32 pt-[env(safe-area-inset-top,8px)]">
       <header className="px-1 pt-1">
         <h1 className="text-indigo-600 text-[9px] font-black uppercase tracking-[0.2em]">СОВМЕСТНЫЙ ДОСТУП</h1>
         <p className="text-slate-900 font-black text-xl">Семейный бюджет</p>

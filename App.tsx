@@ -12,7 +12,7 @@ import { AccountsPage } from './pages/AccountsPage';
 import { JointBudget } from './pages/JointBudget';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { TransactionModal } from './components/TransactionModal';
-import { AppState, Transaction } from './types';
+import { AppState, Transaction, Debt } from './types';
 import { DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS } from './constants';
 import { Loader2, CloudOff } from 'lucide-react';
 
@@ -124,18 +124,14 @@ const AppContent: React.FC = () => {
   }, [tg]);
 
   useEffect(() => {
-    // Safety timer to prevent infinite blank screen
     const safetyTimer = setTimeout(() => {
       if (isLoading) {
-        console.warn("Loading timed out, switching to UI...");
         setIsLoading(false);
       }
     }, 2500);
 
     if (tg) {
       tg.ready();
-      
-      // Modern Fullscreen Logic
       try {
         if (tg.isVersionAtLeast && tg.isVersionAtLeast('7.7')) {
           if (['android', 'ios'].includes(tg.platform)) {
@@ -150,24 +146,19 @@ const AppContent: React.FC = () => {
           tg.expand();
         }
       } catch (e) {
-        console.warn('Fullscreen/Swipe API failed:', e);
         tg.expand();
       }
 
       tg.setHeaderColor('#f8fafc');
       tg.setBackgroundColor('#f8fafc');
-      
       const userId = tg.initDataUnsafe?.user?.id;
-      
       if (userId && !hasAttemptedLoad.current) {
         hasAttemptedLoad.current = true;
         loadData(userId);
       }
     } else {
-      // Fallback for browser
       setTimeout(() => setIsLoading(false), 500);
     }
-
     return () => clearTimeout(safetyTimer);
   }, [tg, loadData]);
 
@@ -198,14 +189,53 @@ const AppContent: React.FC = () => {
     setState(prev => ({ ...prev, ...newState }));
   };
 
-  const handleSaveTransaction = (newTx: Omit<Transaction, 'id'>) => {
+  const handleSaveTransaction = (newTx: Omit<Transaction, 'id'>, newDebtName?: string) => {
+    let finalTx: Transaction;
+    let updatedDebts = [...state.debts];
+
     if (editingTransaction) {
-      const updated = state.transactions.map(t => t.id === editingTransaction.id ? { ...newTx, id: t.id } : t);
-      handleUpdateState({ transactions: updated });
+      finalTx = { ...newTx, id: editingTransaction.id };
     } else {
-      const transaction: Transaction = { ...newTx, id: `tx_${Date.now()}` };
-      handleUpdateState({ transactions: [...state.transactions, transaction] });
+      finalTx = { ...newTx, id: `tx_${Date.now()}` };
     }
+
+    // Обработка логики долгов
+    if (finalTx.linkedDebtId || newDebtName) {
+      const amount = finalTx.amount;
+      const action = finalTx.debtAction;
+
+      if (finalTx.linkedDebtId) {
+        updatedDebts = updatedDebts.map(d => {
+          if (d.id === finalTx.linkedDebtId) {
+            const newAmount = action === 'increase' ? d.amount + amount : Math.max(0, d.amount - amount);
+            return { ...d, amount: newAmount };
+          }
+          return d;
+        });
+      } else if (newDebtName && action === 'increase') {
+        // Создаем новый долг на лету
+        const debtType = finalTx.type === 'expense' ? 'they_owe' : 'i_owe';
+        const newDebt: Debt = {
+          id: `debt_${Date.now()}`,
+          personName: newDebtName,
+          amount: amount,
+          type: debtType,
+          date: new Date().toISOString(),
+          description: `Создано через транзакцию: ${finalTx.note || 'Без описания'}`
+        };
+        updatedDebts.push(newDebt);
+        finalTx.linkedDebtId = newDebt.id;
+      }
+    }
+
+    const updatedTransactions = editingTransaction 
+      ? state.transactions.map(t => t.id === editingTransaction.id ? finalTx : t)
+      : [...state.transactions, finalTx];
+
+    handleUpdateState({ 
+      transactions: updatedTransactions,
+      debts: updatedDebts
+    });
   };
 
   const handleDeleteTransaction = (id: string) => {
@@ -236,7 +266,6 @@ const AppContent: React.FC = () => {
           <Route path="/savings" element={<Savings state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/profile" element={<Profile state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/analytics" element={<AnalyticsPage state={state} />} />
-          {/* Fallback routing */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
@@ -246,6 +275,7 @@ const AppContent: React.FC = () => {
           onSave={handleSaveTransaction}
           categories={state.categories}
           accounts={state.accounts}
+          debts={state.debts}
           initialData={editingTransaction || undefined}
         />
       </Layout>

@@ -93,7 +93,7 @@ export const Profile: React.FC<ProfileProps> = ({ state, onUpdateState }) => {
   };
 
   return (
-    <div className="space-y-5 animate-slide-up pb-36">
+    <div className="space-y-5 animate-slide-up pb-36 pt-[env(safe-area-inset-top,8px)]">
       <header className="px-2 pt-2">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">

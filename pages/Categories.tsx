@@ -81,7 +81,7 @@ export const Categories: React.FC<CategoriesProps> = ({ state, onUpdateState }) 
   };
 
   return (
-    <div className="space-y-4 animate-slide-up pb-24 outline-none">
+    <div className="space-y-4 animate-slide-up pb-24 pt-[env(safe-area-inset-top,8px)] outline-none">
       <header className="flex justify-between items-center px-1 pt-1">
         <div>
           <h1 className={`${config.accent} text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-1.5`}>

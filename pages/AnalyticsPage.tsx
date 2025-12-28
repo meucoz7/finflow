@@ -21,7 +21,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ state }) => {
   }, [transactions]);
 
   return (
-    <div className="space-y-5 animate-slide-up pb-24">
+    <div className="space-y-5 animate-slide-up pb-24 pt-[env(safe-area-inset-top,8px)]">
       <header className="flex items-center gap-3 px-2 pt-2">
         <button onClick={() => navigate(-1)} className="w-10 h-10 bg-white border border-slate-100 rounded-xl flex items-center justify-center text-slate-500 shadow-sm"><ChevronLeft size={20} /></button>
         <div className="flex flex-col">

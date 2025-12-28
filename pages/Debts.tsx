@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { AppState, Debt } from '../types';
 import { Plus, Trash2, UserPlus, UserMinus, Landmark, Calendar, Info, AlertCircle, RefreshCw, Clock, Edit2, Edit3, X } from 'lucide-react';
 
+// Fix: Define the missing DebtsProps interface to resolve the compilation error.
 interface DebtsProps {
   state: AppState;
   onUpdateState: (newState: Partial<AppState>) => void;
@@ -193,7 +194,7 @@ export const Debts: React.FC<DebtsProps> = ({ state, onUpdateState }) => {
   };
 
   return (
-    <div className="space-y-5 animate-slide-up pb-32" onClick={() => setSwipedId(null)}>
+    <div className="space-y-5 animate-slide-up pb-32 pt-[env(safe-area-inset-top,8px)]" onClick={() => setSwipedId(null)}>
       <header className="flex justify-between items-center px-1 pt-1">
         <div>
           <h1 className="text-amber-500 text-[9px] font-black uppercase tracking-[0.2em]">ФИНАНСОВЫЕ ОБЯЗАТЕЛЬСТВА</h1>

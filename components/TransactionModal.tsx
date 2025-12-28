@@ -1,19 +1,20 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Calendar, Wallet, Loader2, QrCode, Clock, CreditCard, Users, Check } from 'lucide-react';
-import { Transaction, Category, TransactionType, Account } from '../types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { X, Calendar, Wallet, Loader2, QrCode, Clock, CreditCard, Users, Check, HandCoins, UserPlus, Search, Plus, ChevronDown, ChevronUp, Eraser } from 'lucide-react';
+import { Transaction, Category, TransactionType, Account, Debt } from '../types';
 import jsQR from 'jsqr';
 
 interface TransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (transaction: Omit<Transaction, 'id'>) => void;
+  onSave: (transaction: Omit<Transaction, 'id'>, newDebtName?: string) => void;
   categories: Category[];
   accounts: Account[];
+  debts: Debt[];
   initialData?: Transaction;
 }
 
-export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onClose, onSave, categories, accounts, initialData }) => {
+export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onClose, onSave, categories, accounts, debts, initialData }) => {
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -25,6 +26,16 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusText, setStatusText] = useState('');
   
+  // UI States
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  
+  // Debt related states
+  const [isDebtRelated, setIsDebtRelated] = useState(false);
+  const [debtAction, setDebtAction] = useState<'increase' | 'decrease' | null>(null);
+  const [selectedDebtId, setSelectedDebtId] = useState<string>('');
+  const [newDebtName, setNewDebtName] = useState('');
+  const [debtSearch, setDebtSearch] = useState('');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -38,13 +49,70 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
         setDate(initialData.date.split('T')[0]);
         setIsPlanned(initialData.isPlanned || false);
         setIsJoint(initialData.isJoint || false);
+        setIsDebtRelated(!!initialData.linkedDebtId);
+        setSelectedDebtId(initialData.linkedDebtId || '');
+        setDebtAction(initialData.debtAction || null);
       } else {
         setAmount(''); setCategoryId(''); setNote(''); setStatusText(''); setIsJoint(false);
-        setIsPlanned(false);
+        setIsPlanned(false); setIsDebtRelated(false); setDebtAction(null); 
+        setSelectedDebtId(''); setNewDebtName(''); setDebtSearch('');
+        setShowCategoryPicker(false);
         if (accounts.length > 0) setAccountId(accounts[0].id);
       }
     }
   }, [isOpen, accounts, initialData]);
+
+  const selectedCategory = useMemo(() => 
+    categories.find(c => c.id === categoryId), 
+  [categories, categoryId]);
+
+  const debtPlaceholder = useMemo(() => {
+    if (!debtAction) return "Кому/От кого...";
+    if (type === 'expense') {
+      return debtAction === 'increase' ? "Кому дали в долг?" : "Кому вернули долг?";
+    } else {
+      return debtAction === 'increase' ? "У кого взяли в долг?" : "Кто вернул долг?";
+    }
+  }, [debtAction, type]);
+
+  const filteredDebts = useMemo(() => {
+    return debts.filter(d => {
+        if (!debtAction) return true;
+        if (type === 'expense') {
+            return debtAction === 'increase' ? d.type === 'they_owe' : d.type === 'i_owe';
+        } else {
+            return debtAction === 'increase' ? d.type === 'i_owe' : d.type === 'they_owe';
+        }
+    }).filter(d => d.personName.toLowerCase().includes(debtSearch.toLowerCase()));
+  }, [debts, debtAction, type, debtSearch]);
+
+  const handleDebtActionSelect = (action: 'increase' | 'decrease') => {
+    if (debtAction === action) {
+      // Отмена действия при повторном нажатии
+      setDebtAction(null);
+      setIsDebtRelated(false);
+      // Сбрасываем заметку только если она была автоматически заполнена
+      if (note.includes('долг') || note.includes('вернули')) setNote('');
+    } else {
+      setDebtAction(action);
+      setIsDebtRelated(true);
+      
+      // Автоматическая заметка
+      const prefix = action === 'increase' 
+        ? (type === 'expense' ? 'Дал в долг' : 'Взял в долг') 
+        : (type === 'expense' ? 'Вернул долг' : 'Мне вернули');
+      setNote(prefix);
+
+      const debtCat = categories.find(c => c.name.toLowerCase().includes('долг') && c.type === type);
+      if (debtCat) setCategoryId(debtCat.id);
+    }
+  };
+
+  const clearCategory = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCategoryId('');
+    setShowCategoryPicker(false);
+  };
 
   const parseQRString = (str: string) => {
     const params = new URLSearchParams(str);
@@ -85,7 +153,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
             return;
           }
         }
-        setStatusText('QR-код не найден.');
+        setStatusText('QR не найден');
         setIsProcessing(false);
         setTimeout(() => setStatusText(''), 3000);
       };
@@ -95,16 +163,19 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount || !categoryId || !accountId) return;
+    
     onSave({
       amount: parseFloat(amount),
       categoryId,
       accountId,
-      note,
+      note: isDebtRelated ? `[ДОЛГ] ${note}` : note,
       date: new Date(date).toISOString(),
       type,
       isPlanned,
-      isJoint
-    });
+      isJoint,
+      linkedDebtId: selectedDebtId || undefined,
+      debtAction: debtAction || undefined
+    }, newDebtName || undefined);
     onClose();
   };
 
@@ -114,90 +185,196 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
     <div className="fixed inset-0 z-[100] flex items-end justify-center">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
       
-      <div className="relative w-full max-w-md bg-white rounded-t-[3rem] shadow-2xl animate-slide-up flex flex-col max-h-[95vh] pb-safe">
-        <div className="w-16 h-1.5 bg-slate-100 rounded-full mx-auto mt-4 mb-2" />
+      <div className="relative w-full max-w-md bg-white rounded-t-[2rem] shadow-2xl animate-slide-up flex flex-col max-h-[85vh] pb-safe">
+        <div className="w-10 h-1 bg-slate-100 rounded-full mx-auto mt-2.5" />
 
-        <div className="px-8 pb-10 overflow-y-auto no-scrollbar">
-          <div className="flex justify-between items-center mb-6 pt-2">
-            <h2 className="text-3xl font-bold text-slate-900 tracking-tight">{initialData ? 'Изменить' : 'Новая запись'}</h2>
-            <button onClick={onClose} className="p-3 bg-slate-50 rounded-full text-slate-400 active:scale-90 transition-all"><X size={20} /></button>
+        <div className="px-5 pb-5 overflow-y-auto no-scrollbar">
+          <div className="flex justify-between items-center mb-3 pt-2">
+            <h2 className="text-xl font-black text-slate-900 uppercase tracking-tighter">{initialData ? 'Изменить' : 'Запись'}</h2>
+            <button onClick={onClose} className="p-1.5 bg-slate-50 rounded-full text-slate-400 active:scale-90 transition-all"><X size={16} /></button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-3 gap-2 bg-slate-50 p-2 rounded-2xl">
+          <form onSubmit={handleSubmit} className="space-y-3.5">
+            <div className="grid grid-cols-3 gap-1 bg-slate-50 p-1 rounded-xl">
               {(['expense', 'income', 'savings'] as const).map(t => (
-                <button key={t} type="button" onClick={() => { setType(t); setCategoryId(''); }} className={`py-3 rounded-xl font-bold text-[11px] uppercase tracking-wide transition-all ${type === t ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
+                <button key={t} type="button" onClick={() => { setType(t); setCategoryId(''); setIsDebtRelated(false); setDebtAction(null); setShowCategoryPicker(false); }} className={`py-1.5 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all ${type === t ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
                   {t === 'expense' ? 'Трата' : t === 'income' ? 'Доход' : 'Цель'}
                 </button>
               ))}
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-1.5">
+              <div className="flex gap-1.5">
+                <div className="relative flex-grow h-14 bg-slate-50 rounded-xl px-4 flex items-center border border-slate-100 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+                  <input type="number" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" className="w-full bg-transparent text-3xl font-black text-slate-900 outline-none placeholder:text-slate-200" required />
+                  <span className="text-lg font-black text-slate-300 ml-1">₽</span>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => fileInputRef.current?.click()} 
+                  disabled={isProcessing}
+                  className="w-14 h-14 bg-slate-900 text-white rounded-xl flex items-center justify-center hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50 shrink-0 shadow-lg shadow-slate-200"
+                >
+                  {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <QrCode size={20} />}
+                </button>
+              </div>
+              <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleFileUpload} />
+              {statusText && <p className="text-[9px] text-center font-bold text-indigo-500">{statusText}</p>}
+            </div>
+
+            {/* Category Dropdown Button */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowCategoryPicker(!showCategoryPicker)}
+                className={`w-full h-11 px-4 rounded-xl border flex items-center justify-between transition-all ${categoryId ? 'bg-indigo-50 border-indigo-200 shadow-inner' : 'bg-slate-50 border-slate-100'}`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-lg">{selectedCategory?.icon || '📦'}</span>
+                  <span className={`text-[11px] font-black uppercase tracking-tight ${selectedCategory ? 'text-indigo-900' : 'text-slate-400'}`}>
+                    {selectedCategory?.name || 'Выбрать категорию'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {categoryId && (
+                    <div onClick={clearCategory} className="p-1 rounded-md bg-white text-rose-400 hover:text-rose-600 border border-rose-100 shadow-sm transition-all active:scale-75">
+                      <X size={12} strokeWidth={3} />
+                    </div>
+                  )}
+                  {showCategoryPicker ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+                </div>
+              </button>
+
+              {showCategoryPicker && (
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-slate-100 rounded-xl shadow-xl overflow-hidden animate-slide-up max-h-56 overflow-y-auto no-scrollbar p-1 grid grid-cols-3 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => { setCategoryId(''); setShowCategoryPicker(false); }}
+                    className="flex items-center gap-2 p-2 rounded-lg bg-slate-50/50 text-slate-400 italic"
+                  >
+                    <Eraser size={14} />
+                    <span className="text-[9px] font-bold uppercase">Сброс</span>
+                  </button>
+                  {categories.filter(c => c.type === type).map(cat => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => { setCategoryId(cat.id); setShowCategoryPicker(false); }}
+                      className={`flex items-center gap-2 p-2 rounded-lg transition-all ${categoryId === cat.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-600'}`}
+                    >
+                      <span className="text-base">{cat.icon}</span>
+                      <span className="text-[9px] font-bold truncate uppercase">{cat.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {(type === 'expense' || type === 'income') && (
+              <div className="grid grid-cols-2 gap-1.5">
+                <button 
+                  type="button" 
+                  onClick={() => handleDebtActionSelect('increase')}
+                  className={`h-10 rounded-xl border flex items-center justify-center gap-2 transition-all ${debtAction === 'increase' ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-100 shadow-sm' : 'bg-slate-50 border-slate-100 opacity-60'}`}
+                >
+                  <UserPlus size={14} className={debtAction === 'increase' ? 'text-amber-600' : 'text-slate-400'} />
+                  <span className="text-[9px] font-black uppercase tracking-tighter">
+                    {type === 'expense' ? 'Дал в долг' : 'Взял в долг'}
+                  </span>
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => handleDebtActionSelect('decrease')}
+                  className={`h-10 rounded-xl border flex items-center justify-center gap-2 transition-all ${debtAction === 'decrease' ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-100 shadow-sm' : 'bg-slate-50 border-slate-100 opacity-60'}`}
+                >
+                  <HandCoins size={14} className={debtAction === 'decrease' ? 'text-amber-600' : 'text-slate-400'} />
+                  <span className="text-[9px] font-black uppercase tracking-tighter">
+                    {type === 'expense' ? 'Вернул долг' : 'Мне вернули'}
+                  </span>
+                </button>
+              </div>
+            )}
+
+            {isDebtRelated && (
+              <div className="p-3 bg-amber-50/40 rounded-xl border border-amber-100 space-y-2 animate-slide-up">
+                {!selectedDebtId && !newDebtName ? (
+                  <div className="space-y-1.5">
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        placeholder={debtPlaceholder}
+                        className="w-full h-8 bg-white border border-amber-200 rounded-lg p-2 pl-8 text-[10px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-200 transition-all"
+                        value={debtSearch}
+                        onChange={e => setDebtSearch(e.target.value)}
+                      />
+                      <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-400" />
+                    </div>
+                    <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                      {filteredDebts.length > 0 ? (
+                        filteredDebts.map(d => (
+                          <button key={d.id} type="button" onClick={() => setSelectedDebtId(d.id)} className="flex-shrink-0 px-2.5 py-1 bg-white border border-amber-200 rounded-md text-[9px] font-bold text-amber-700 active:scale-95">
+                            {d.personName}
+                          </button>
+                        ))
+                      ) : debtSearch ? (
+                        <button type="button" onClick={() => setNewDebtName(debtSearch)} className="flex-shrink-0 px-2.5 py-1 bg-amber-600 text-white rounded-md text-[9px] font-bold flex items-center gap-1 active:scale-95">
+                          <Plus size={10} /> {debtSearch}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between bg-white p-2 rounded-lg border border-amber-200 shadow-sm">
+                    <div className="flex items-center gap-2">
+                       <div className="w-6 h-6 bg-amber-100 rounded flex items-center justify-center text-amber-600"><Check size={12} strokeWidth={3} /></div>
+                       <p className="text-[10px] font-black text-amber-800 uppercase">{selectedDebtId ? debts.find(d => d.id === selectedDebtId)?.personName : newDebtName}</p>
+                    </div>
+                    <button type="button" onClick={() => { setSelectedDebtId(''); setNewDebtName(''); }} className="p-1 text-amber-300 hover:text-amber-500"><X size={14} /></button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => setIsJoint(!isJoint)}
+                className={`h-10 px-3 rounded-xl border flex items-center justify-between transition-all ${isJoint ? 'border-indigo-600 bg-indigo-50 shadow-sm' : 'border-slate-100 bg-slate-50 opacity-70'}`}
+              >
+                <div className="flex items-center gap-2">
+                  <Users size={14} className={isJoint ? 'text-indigo-600' : 'text-slate-400'} />
+                  <span className={`text-[9px] font-black uppercase tracking-tight ${isJoint ? 'text-indigo-900' : 'text-slate-500'}`}>Общий</span>
+                </div>
+                <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${isJoint ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300'}`}>
+                  {isJoint && <Check size={8} strokeWidth={4} />}
+                </div>
+              </button>
               <button 
                 type="button" 
-                onClick={() => fileInputRef.current?.click()} 
-                disabled={isProcessing}
-                className="w-full py-4 bg-slate-50 border border-slate-100 rounded-2xl text-slate-500 text-[12px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-slate-100 transition-all active:scale-95 disabled:opacity-50"
+                onClick={() => setIsPlanned(!isPlanned)} 
+                className={`h-10 rounded-xl border flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-wide transition-all ${isPlanned ? 'border-amber-400 bg-amber-50 text-amber-600 shadow-sm' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
               >
-                {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <QrCode size={18} />}
-                {statusText || 'Сканировать QR'}
+                <Clock size={14} /> В план
               </button>
-              <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleFileUpload} />
-
-              <div className="relative flex items-center bg-slate-50 rounded-2xl px-6 py-6 border border-slate-100">
-                <input type="number" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" className="w-full bg-transparent text-5xl font-bold text-slate-900 outline-none placeholder:text-slate-200" required />
-                <span className="text-2xl font-bold text-slate-300">₽</span>
-              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsJoint(!isJoint)}
-              className={`w-full p-5 rounded-2xl border flex items-center justify-between transition-all ${isJoint ? 'border-indigo-600 bg-indigo-50 shadow-sm' : 'border-slate-100 bg-slate-50 opacity-70'}`}
-            >
-              <div className="flex items-center gap-4">
-                <Users size={20} className={isJoint ? 'text-indigo-600' : 'text-slate-400'} />
-                <span className={`text-[12px] font-bold uppercase tracking-wide ${isJoint ? 'text-indigo-900' : 'text-slate-500'}`}>Общий бюджет</span>
-              </div>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isJoint ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200'}`}>
-                {isJoint && <Check size={14} strokeWidth={3} />}
-              </div>
-            </button>
-
-            <div className="space-y-3">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">Кошелек</label>
-              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
-                {accounts.map(acc => (
-                  <button key={acc.id} type="button" onClick={() => setAccountId(acc.id)} className={`flex-shrink-0 px-5 py-3 rounded-xl border transition-all font-bold text-[12px] flex items-center gap-2.5 ${accountId === acc.id ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm' : 'border-slate-100 bg-slate-50 text-slate-400 opacity-80'}`}>
-                    <span className="text-lg">{acc.icon}</span> {acc.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-4 gap-3">
-              {categories.filter(c => c.type === type).map(cat => (
-                <button key={cat.id} type="button" onClick={() => setCategoryId(cat.id)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center gap-1.5 border transition-all ${categoryId === cat.id ? 'border-indigo-600 bg-indigo-50 shadow-md scale-105' : 'border-slate-50 bg-slate-50 opacity-70'}`}>
-                  <span className="text-2xl">{cat.icon}</span>
-                  <span className="text-[11px] font-bold text-slate-500 truncate w-full text-center px-1 tracking-tight">{cat.name}</span>
+            <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              {accounts.map(acc => (
+                <button key={acc.id} type="button" onClick={() => setAccountId(acc.id)} className={`flex-shrink-0 px-3.5 py-2 rounded-xl border transition-all font-black text-[10px] uppercase flex items-center gap-1.5 ${accountId === acc.id ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm' : 'border-slate-100 bg-slate-50 text-slate-400'}`}>
+                  <span>{acc.icon}</span> {acc.name}
                 </button>
               ))}
             </div>
 
-            <div className="space-y-3">
-              <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="Заметка о покупке..." className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-[14px] font-medium text-slate-700 outline-none focus:bg-white focus:ring-4 focus:ring-indigo-50 transition-all" />
-              <div className="flex gap-3">
-                 <div className="flex-grow bg-slate-50 rounded-2xl p-4 flex items-center gap-3 border border-slate-100">
-                    <Calendar size={18} className="text-slate-400" />
-                    <input type="date" value={date} onChange={e => setDate(e.target.value)} className="bg-transparent text-[13px] font-bold outline-none w-full text-slate-700" />
-                 </div>
-                 <button type="button" onClick={() => setIsPlanned(!isPlanned)} className={`px-5 rounded-2xl border flex items-center gap-2 font-bold text-[12px] uppercase tracking-wide transition-all ${isPlanned ? 'border-amber-400 bg-amber-50 text-amber-600' : 'border-slate-100 bg-slate-50 text-slate-400'}`}>
-                  <Clock size={16} /> План
-                </button>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="Заметка..." className="h-10 bg-slate-50 border border-slate-100 rounded-xl px-3 text-[11px] font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all shadow-inner" />
+              <div className="h-10 bg-slate-50 rounded-xl px-3 flex items-center gap-2 border border-slate-100 focus-within:bg-white transition-all shadow-inner">
+                <Calendar size={12} className="text-slate-400 shrink-0" />
+                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="bg-transparent text-[10px] font-bold outline-none w-full text-slate-700" />
               </div>
             </div>
 
-            <button type="submit" disabled={!amount || !categoryId || !accountId || isProcessing} className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-bold text-[15px] uppercase tracking-[0.1em] shadow-xl shadow-slate-200 active:scale-[0.98] transition-all disabled:opacity-20 mt-4 mb-8">
+            <button type="submit" disabled={!amount || !categoryId || !accountId || isProcessing || (isDebtRelated && !selectedDebtId && !newDebtName)} className="w-full h-14 bg-slate-900 text-white rounded-2xl font-black text-[12px] uppercase tracking-widest shadow-xl active:scale-[0.98] transition-all disabled:opacity-20 mt-1 mb-2">
               {initialData ? 'Обновить' : 'Сохранить'}
             </button>
           </form>

@@ -104,7 +104,7 @@ export const AccountsPage: React.FC<AccountsPageProps> = ({ state, onUpdateState
   };
 
   return (
-    <div className="space-y-6 animate-slide-up pb-32">
+    <div className="space-y-6 animate-slide-up pb-32 pt-[env(safe-area-inset-top,8px)]">
       <header className="flex justify-between items-center px-2 pt-2">
         <div>
           <h1 className="text-indigo-500 text-[10px] font-black uppercase tracking-[0.2em] mb-1">ФИНАНСОВЫЕ СЧЕТА</h1>

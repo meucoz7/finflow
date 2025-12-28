@@ -139,7 +139,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ state, onUpdateState
   };
 
   return (
-    <div className="space-y-5 animate-slide-up pb-32">
+    <div className="space-y-5 animate-slide-up pb-32 pt-[env(safe-area-inset-top,8px)]">
       <header className="px-1 pt-1 flex justify-between items-center">
         <div>
           <h1 className="text-indigo-500 text-[9px] font-black uppercase tracking-[0.2em]">ПЛАН И СОБЫТИЯ</h1>

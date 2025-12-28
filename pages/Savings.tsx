@@ -82,7 +82,7 @@ export const Savings: React.FC<SavingsProps> = ({ state, onUpdateState }) => {
   };
 
   return (
-    <div className="space-y-5 animate-slide-up pb-32">
+    <div className="space-y-5 animate-slide-up pb-32 pt-[env(safe-area-inset-top,8px)]">
       <header className="flex justify-between items-center px-1 pt-1">
         <div>
           <h1 className="text-rose-500 text-[9px] font-black uppercase tracking-[0.2em]">ЦЕЛИ</h1>

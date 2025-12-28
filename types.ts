@@ -28,6 +28,8 @@ export interface Transaction {
   type: TransactionType;
   isPlanned?: boolean;
   isJoint?: boolean; // Флаг совместной траты
+  linkedDebtId?: string; // Связанный долг
+  debtAction?: 'increase' | 'decrease'; // Увеличить или уменьшить долг
 }
 
 export interface Debt {
