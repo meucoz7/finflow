@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
-import { Bot, Keyboard, webhookCallback } from 'grammy';
+import { Bot, InlineKeyboard, webhookCallback } from 'grammy';
 import cors from 'cors';
 
 dotenv.config();
@@ -58,8 +58,18 @@ bot.command('start', async (ctx) => {
         state: { profile: { name: first_name, currency: '₽' } }
       });
     }
-    const keyboard = new Keyboard().webApp('Открыть Кошелек 💳', process.env.APP_URL || '').resized();
-    await ctx.reply(`Привет, ${first_name}! 💰\nТвой финансовый помощник готов.`, { reply_markup: keyboard });
+    
+    // Используем Inline Keyboard вместо обычной Reply Keyboard
+    const inlineKeyboard = new InlineKeyboard()
+      .webApp('Открыть кошелек 💳', process.env.APP_URL || '');
+
+    await ctx.reply(
+      `Привет, <b>${first_name}</b>! 💰\n\nТвой личный финансовый помощник FinFlow готов к работе. Отслеживай расходы, планируй бюджет и копи на цели прямо здесь.`, 
+      { 
+        parse_mode: 'HTML',
+        reply_markup: inlineKeyboard 
+      }
+    );
   } catch (err) {
     console.error('Bot Command Error:', err);
   }
@@ -72,10 +82,20 @@ if (BOT_TOKEN) {
 // --- API Endpoints ---
 app.get('/api/user-state/:id', async (req, res) => {
   try {
-    const user = await User.findOne({ telegramId: parseInt(req.params.id) });
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    const userId = parseInt(req.params.id);
+    let user = await User.findOne({ telegramId: userId });
+    
+    // Если пользователь не найден, создаем пустой профиль сразу
+    if (!user) {
+      user = await User.create({
+        telegramId: userId,
+        state: { profile: { name: 'Пользователь', currency: '₽' } }
+      });
+    }
+    
     res.json({ state: user.state });
   } catch (err) {
+    console.error("GET user-state error:", err);
     res.status(500).json({ error: err.message });
   }
 });

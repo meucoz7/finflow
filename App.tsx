@@ -116,6 +116,7 @@ const AppContent: React.FC = () => {
         setSyncStatus('error');
       }
     } catch (err) {
+      console.error("Load error:", err);
       setSyncStatus('error');
     } finally {
       setIsLoading(false);
@@ -125,6 +126,26 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (tg) {
       tg.ready();
+      
+      // Modern Fullscreen & Swipe Logic (Mini Apps 7.7+)
+      try {
+        if (tg.isVersionAtLeast && tg.isVersionAtLeast('7.7')) {
+          if (['android', 'ios'].includes(tg.platform)) {
+            if (typeof tg.requestFullscreen === 'function') {
+              tg.requestFullscreen();
+            }
+          }
+          if (typeof tg.disableVerticalSwipes === 'function') {
+            tg.disableVerticalSwipes();
+          }
+        } else {
+          tg.expand();
+        }
+      } catch (e) {
+        console.warn('Fullscreen/Swipe API not supported:', e);
+        tg.expand();
+      }
+
       tg.setHeaderColor('#f8fafc');
       tg.setBackgroundColor('#f8fafc');
       
@@ -134,9 +155,12 @@ const AppContent: React.FC = () => {
         hasAttemptedLoad.current = true;
         loadData(userId);
       } else if (!userId) {
-        // Если ID нет (например, запуск в браузере), выключаем лоадер через небольшую паузу
+        // Fallback for development/browser mode
         setTimeout(() => setIsLoading(false), 500);
       }
+    } else {
+      // Fallback if not in Telegram
+      setTimeout(() => setIsLoading(false), 500);
     }
   }, [tg, loadData]);
 
