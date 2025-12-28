@@ -1,14 +1,17 @@
 
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const dotenv = require('dotenv');
-const mongoose = require('mongoose');
-const { Bot, Keyboard, webhookCallback } = require('grammy');
-const cors = require('cors');
-const { transform } = require('sucrase');
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+import dotenv from 'dotenv';
+import mongoose from 'mongoose';
+import { Bot, Keyboard, webhookCallback } from 'grammy';
+import cors from 'cors';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
@@ -16,9 +19,7 @@ app.use(cors());
 
 // --- Database Connection ---
 const MONGO_URI = process.env.MONGO_URI;
-if (!MONGO_URI) {
-  console.error('❌ FATAL: MONGO_URI is not defined');
-} else {
+if (MONGO_URI) {
   mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ MongoDB Connected'))
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
@@ -41,27 +42,6 @@ const userSchema = new mongoose.Schema({
 });
 
 const User = mongoose.model('User', userSchema);
-
-// --- TSX/TS Transpilation Middleware ---
-// Это решает проблему "Черного экрана", превращая TSX в JS на лету
-app.get(['/*.tsx', '/*.ts'], (req, res, next) => {
-  const filePath = path.join(__dirname, req.path);
-  if (fs.existsSync(filePath)) {
-    try {
-      const code = fs.readFileSync(filePath, 'utf8');
-      const result = transform(code, {
-        transforms: ['typescript', 'jsx'],
-        jsxRuntime: 'automatic',
-      });
-      res.set('Content-Type', 'application/javascript');
-      return res.send(result.code);
-    } catch (err) {
-      console.error(`❌ Transpilation Error (${req.path}):`, err);
-      return res.status(500).send('Transpilation Error');
-    }
-  }
-  next();
-});
 
 // --- Telegram Bot ---
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -130,8 +110,24 @@ app.post('/api/user-state/:id', async (req, res) => {
   }
 });
 
-app.use(express.static(path.join(__dirname)));
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+// --- Serving Build Assets ---
+const distPath = path.join(__dirname, 'dist');
+
+// Если мы в продакшене (папка dist существует)
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  
+  // Важно для SPA: любые маршруты, которые не API, отдают index.html
+  app.get(/^(?!\/api).*$/, (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+} else {
+  // Для разработки, если dist еще нет
+  app.use(express.static(__dirname));
+  app.get(/^(?!\/api).*$/, (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+  });
+}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
@@ -139,7 +135,7 @@ app.listen(PORT, async () => {
   if (process.env.APP_URL && BOT_TOKEN) {
     try {
       await bot.api.setWebhook(`${process.env.APP_URL}/api/bot/${BOT_TOKEN}`);
-      console.log(`📡 Webhook set successfully`);
+      console.log(`📡 Webhook set to: ${process.env.APP_URL}/api/bot/${BOT_TOKEN}`);
     } catch (err) {
       console.error('❌ Webhook error:', err);
     }

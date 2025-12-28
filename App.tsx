@@ -1,20 +1,20 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
-import { Layout } from './components/Layout.tsx';
-import { Dashboard } from './pages/Dashboard.tsx';
-import { CalendarPage } from './pages/CalendarPage.tsx';
-import { Categories } from './pages/Categories.tsx';
-import { Debts } from './pages/Debts.tsx';
-import { Profile } from './pages/Profile.tsx';
-import { Savings } from './pages/Savings.tsx';
-import { AccountsPage } from './pages/AccountsPage.tsx';
-import { JointBudget } from './pages/JointBudget.tsx';
-import { AIChatPage } from './pages/AIChatPage.tsx';
-import { AnalyticsPage } from './pages/AnalyticsPage.tsx';
-import { TransactionModal } from './components/TransactionModal.tsx';
-import { AppState, Transaction } from './types.ts';
-import { DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS } from './constants.tsx';
+import { Layout } from './components/Layout';
+import { Dashboard } from './pages/Dashboard';
+import { CalendarPage } from './pages/CalendarPage';
+import { Categories } from './pages/Categories';
+import { Debts } from './pages/Debts';
+import { Profile } from './pages/Profile';
+import { Savings } from './pages/Savings';
+import { AccountsPage } from './pages/AccountsPage';
+import { JointBudget } from './pages/JointBudget';
+import { AIChatPage } from './pages/AIChatPage';
+import { AnalyticsPage } from './pages/AnalyticsPage';
+import { TransactionModal } from './components/TransactionModal';
+import { AppState, Transaction } from './types';
+import { DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS } from './constants';
 import { Loader2, CloudOff } from 'lucide-react';
 
 const MOCK_STATE: AppState = {
@@ -36,7 +36,6 @@ const App: React.FC = () => {
   const tg = (window as any).Telegram?.WebApp;
   const userId = tg?.initDataUnsafe?.user?.id;
 
-  // 1. Первичная загрузка
   useEffect(() => {
     if (tg) {
       tg.ready();
@@ -46,7 +45,6 @@ const App: React.FC = () => {
 
     const loadData = async () => {
       if (!userId) {
-        console.log("🛠️ Local Mode Active");
         setIsLoading(false);
         return;
       }
@@ -78,7 +76,6 @@ const App: React.FC = () => {
     loadData();
   }, [userId]);
 
-  // 2. Автосохранение
   useEffect(() => {
     if (!userId || syncStatus === 'local' || isLoading) return;
 
