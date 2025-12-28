@@ -85,13 +85,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
   };
 
   return (
-    <div className="space-y-6 animate-slide-up pb-10">
+    <div className="space-y-6 animate-slide-up pb-10 pt-[env(safe-area-inset-top,8px)]">
       <header className="space-y-4 pt-2 px-1">
         <div className="flex justify-between items-center">
           <Link to="/profile" className="flex items-center gap-3 group">
-             <div className="w-10 h-10 rounded-xl bg-slate-900 border-2 border-white shadow-md flex items-center justify-center text-white text-base font-semibold shrink-0 group-active:scale-90 transition-all overflow-hidden">
+             <div className="w-11 h-11 rounded-2xl bg-slate-900 border-2 border-white shadow-md flex items-center justify-center text-white text-base font-semibold shrink-0 group-active:scale-90 transition-all overflow-hidden aspect-square">
                 {profile.avatar ? (
-                  <img src={profile.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                  <img src={profile.avatar} alt="Avatar" className="w-full h-full object-cover aspect-square" />
                 ) : (
                   <span className="leading-none">{profile.name.charAt(0)}</span>
                 )}

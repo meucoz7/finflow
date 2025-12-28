@@ -24,11 +24,11 @@
             overscroll-behavior-y: contain;
             -webkit-tap-highlight-color: transparent;
             min-height: 100vh;
-            min-height: -webkit-fill-available;
+            /* Важно для работы safe-areas */
+            padding-top: env(safe-area-inset-top, 0px);
         }
         #root { 
             min-height: 100vh;
-            min-height: -webkit-fill-available;
             display: flex;
             flex-direction: column;
         }
@@ -46,11 +46,11 @@
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border-top: 1px solid rgba(0, 0, 0, 0.05);
-            padding-bottom: env(safe-area-inset-bottom);
+            padding-bottom: env(safe-area-inset-bottom, 16px);
         }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .safe-top { padding-top: env(safe-area-inset-top); }
-        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .safe-top { padding-top: env(safe-area-inset-top, 20px); }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 20px); }
         
         @keyframes fadeIn {
             from { opacity: 0; }

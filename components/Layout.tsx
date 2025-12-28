@@ -14,7 +14,7 @@ export const Layout: React.FC<{ children: React.ReactNode; onAddClick: () => voi
 
   return (
     <div className="flex flex-col min-h-screen w-full relative selection:bg-indigo-100">
-      <main className="flex-grow w-full p-5 pb-40 safe-top">
+      <main className="flex-grow w-full p-5 pb-40">
         {children}
       </main>
 

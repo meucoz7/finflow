@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { HashRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { CalendarPage } from './pages/CalendarPage';
@@ -51,7 +51,7 @@ const TelegramNavigation: React.FC = () => {
 };
 
 const SkeletonLoader = () => (
-  <div className="flex flex-col min-h-screen bg-[#f8fafc] p-6 space-y-8 animate-pulse w-full max-w-md mx-auto">
+  <div className="flex flex-col min-h-screen bg-[#f8fafc] p-6 pt-[env(safe-area-inset-top,24px)] space-y-8 animate-pulse w-full max-w-md mx-auto">
     <div className="flex justify-between items-center mt-4">
       <div className="flex items-center gap-4">
         <div className="w-12 h-12 bg-slate-200 rounded-2xl" />
@@ -124,10 +124,18 @@ const AppContent: React.FC = () => {
   }, [tg]);
 
   useEffect(() => {
+    // Safety timer to prevent infinite blank screen
+    const safetyTimer = setTimeout(() => {
+      if (isLoading) {
+        console.warn("Loading timed out, switching to UI...");
+        setIsLoading(false);
+      }
+    }, 2500);
+
     if (tg) {
       tg.ready();
       
-      // Modern Fullscreen & Swipe Logic (Mini Apps 7.7+)
+      // Modern Fullscreen Logic
       try {
         if (tg.isVersionAtLeast && tg.isVersionAtLeast('7.7')) {
           if (['android', 'ios'].includes(tg.platform)) {
@@ -142,7 +150,7 @@ const AppContent: React.FC = () => {
           tg.expand();
         }
       } catch (e) {
-        console.warn('Fullscreen/Swipe API not supported:', e);
+        console.warn('Fullscreen/Swipe API failed:', e);
         tg.expand();
       }
 
@@ -154,14 +162,13 @@ const AppContent: React.FC = () => {
       if (userId && !hasAttemptedLoad.current) {
         hasAttemptedLoad.current = true;
         loadData(userId);
-      } else if (!userId) {
-        // Fallback for development/browser mode
-        setTimeout(() => setIsLoading(false), 500);
       }
     } else {
-      // Fallback if not in Telegram
+      // Fallback for browser
       setTimeout(() => setIsLoading(false), 500);
     }
+
+    return () => clearTimeout(safetyTimer);
   }, [tg, loadData]);
 
   useEffect(() => {
@@ -214,7 +221,7 @@ const AppContent: React.FC = () => {
       <Layout onAddClick={() => { setEditingTransaction(null); setIsModalOpen(true); }}>
         <TelegramNavigation />
         
-        <div className="fixed top-4 right-4 z-[2000] pointer-events-none opacity-30">
+        <div className="fixed top-4 right-4 z-[2000] pointer-events-none opacity-30 mt-[env(safe-area-inset-top,0px)]">
           {syncStatus === 'syncing' && <Loader2 size={12} className="animate-spin text-indigo-500" />}
           {syncStatus === 'error' && <CloudOff size={12} className="text-rose-500" />}
         </div>
@@ -229,6 +236,8 @@ const AppContent: React.FC = () => {
           <Route path="/savings" element={<Savings state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/profile" element={<Profile state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/analytics" element={<AnalyticsPage state={state} />} />
+          {/* Fallback routing */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
         <TransactionModal 
