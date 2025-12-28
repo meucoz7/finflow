@@ -1,10 +1,12 @@
 
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const { Bot, Keyboard, webhookCallback } = require('grammy');
 const cors = require('cors');
+const { transform } = require('sucrase');
 
 dotenv.config();
 
@@ -15,13 +17,14 @@ app.use(cors());
 // --- Database Connection ---
 const MONGO_URI = process.env.MONGO_URI;
 if (!MONGO_URI) {
-  console.error('❌ FATAL: MONGO_URI is not defined in Environment Variables');
+  console.error('❌ FATAL: MONGO_URI is not defined');
 } else {
   mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ MongoDB Connected'))
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
 }
 
+// --- User Schema ---
 const userSchema = new mongoose.Schema({
   telegramId: { type: Number, required: true, unique: true },
   firstName: String,
@@ -39,12 +42,29 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
+// --- TSX/TS Transpilation Middleware ---
+// Это решает проблему "Черного экрана", превращая TSX в JS на лету
+app.get(['/*.tsx', '/*.ts'], (req, res, next) => {
+  const filePath = path.join(__dirname, req.path);
+  if (fs.existsSync(filePath)) {
+    try {
+      const code = fs.readFileSync(filePath, 'utf8');
+      const result = transform(code, {
+        transforms: ['typescript', 'jsx'],
+        jsxRuntime: 'automatic',
+      });
+      res.set('Content-Type', 'application/javascript');
+      return res.send(result.code);
+    } catch (err) {
+      console.error(`❌ Transpilation Error (${req.path}):`, err);
+      return res.status(500).send('Transpilation Error');
+    }
+  }
+  next();
+});
+
 // --- Telegram Bot ---
 const BOT_TOKEN = process.env.BOT_TOKEN;
-if (!BOT_TOKEN) {
-  console.error('❌ FATAL: BOT_TOKEN is not defined');
-}
-
 const bot = new Bot(BOT_TOKEN || 'dummy_token');
 
 bot.command('start', async (ctx) => {
@@ -55,31 +75,21 @@ bot.command('start', async (ctx) => {
       await User.create({
         telegramId: id,
         firstName: first_name,
-        state: {
-          profile: { name: first_name, currency: '₽' }
-        }
+        state: { profile: { name: first_name, currency: '₽' } }
       });
     }
-    
-    const keyboard = new Keyboard()
-      .webApp('Открыть Кошелек 💳', process.env.APP_URL)
-      .resized();
-
-    await ctx.reply(`Привет, ${first_name}! 💰\n\nТвой финансовый помощник готов к работе.`, {
-      reply_markup: keyboard
-    });
+    const keyboard = new Keyboard().webApp('Открыть Кошелек 💳', process.env.APP_URL || '').resized();
+    await ctx.reply(`Привет, ${first_name}! 💰\nТвой финансовый помощник готов.`, { reply_markup: keyboard });
   } catch (err) {
     console.error('Bot Command Error:', err);
   }
 });
 
-// Настройка Webhook эндпоинта
 if (BOT_TOKEN) {
   app.use(`/api/bot/${BOT_TOKEN}`, webhookCallback(bot, 'express'));
 }
 
 // --- API Endpoints ---
-
 app.post('/api/ai/chat', async (req, res) => {
   try {
     const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
@@ -91,7 +101,6 @@ app.post('/api/ai/chat', async (req, res) => {
       body: JSON.stringify(req.body)
     });
     const data = await response.json();
-    if (data.error) throw new Error(data.error.message || 'Mistral API Error');
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -102,15 +111,7 @@ app.get('/api/user-state/:id', async (req, res) => {
   try {
     const user = await User.findOne({ telegramId: parseInt(req.params.id) });
     if (!user) return res.status(404).json({ error: 'User not found' });
-    let finalState = { ...user.state };
-    if (user.partnerId) {
-      const partner = await User.findOne({ telegramId: user.partnerId });
-      if (partner) {
-        const jointTxs = partner.state.transactions.filter(t => t.isJoint);
-        finalState.transactions = [...finalState.transactions, ...jointTxs];
-      }
-    }
-    res.json({ state: finalState });
+    res.json({ state: user.state });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -129,35 +130,18 @@ app.post('/api/user-state/:id', async (req, res) => {
   }
 });
 
-app.post('/api/pair-users', async (req, res) => {
-  const { myId, partnerId } = req.body;
-  try {
-    const partner = await User.findOne({ telegramId: parseInt(partnerId) });
-    if (!partner) return res.status(404).json({ error: 'Партнер не найден' });
-    await User.findOneAndUpdate({ telegramId: myId }, { partnerId: parseInt(partnerId) });
-    await User.findOneAndUpdate({ telegramId: parseInt(partnerId) }, { partnerId: myId });
-    res.json({ success: true, partnerName: partner.firstName });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 app.use(express.static(path.join(__dirname)));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  
   if (process.env.APP_URL && BOT_TOKEN) {
-    const webhookUrl = `${process.env.APP_URL}/api/bot/${BOT_TOKEN}`;
     try {
-      await bot.api.setWebhook(webhookUrl);
-      console.log(`📡 Webhook set to: ${webhookUrl}`);
+      await bot.api.setWebhook(`${process.env.APP_URL}/api/bot/${BOT_TOKEN}`);
+      console.log(`📡 Webhook set successfully`);
     } catch (err) {
-      console.error('❌ Failed to set webhook:', err);
+      console.error('❌ Webhook error:', err);
     }
-  } else {
-    console.warn('⚠️ Webhook not configured: APP_URL or BOT_TOKEN missing.');
   }
 });
