@@ -193,18 +193,33 @@ const AppContent: React.FC = () => {
     let finalTx: Transaction;
     let updatedDebts = [...state.debts];
 
+    // 1. Если мы РЕДАКТИРУЕМ, сначала "откатываем" влияние старой транзакции на долги
     if (editingTransaction) {
       finalTx = { ...newTx, id: editingTransaction.id };
+      
+      if (editingTransaction.linkedDebtId) {
+        updatedDebts = updatedDebts.map(d => {
+          if (d.id === editingTransaction.linkedDebtId) {
+            // Обратное действие: если было 'increase', вычитаем. Если 'decrease', прибавляем.
+            const reversalAmount = editingTransaction.debtAction === 'increase' 
+              ? -editingTransaction.amount 
+              : editingTransaction.amount;
+            return { ...d, amount: Math.max(0, d.amount + reversalAmount) };
+          }
+          return d;
+        });
+      }
     } else {
       finalTx = { ...newTx, id: `tx_${Date.now()}` };
     }
 
-    // Обработка логики долгов
+    // 2. Применяем влияние НОВОЙ (или измененной) транзакции на долги
     if (finalTx.linkedDebtId || newDebtName) {
       const amount = finalTx.amount;
       const action = finalTx.debtAction;
 
       if (finalTx.linkedDebtId) {
+        // Ищем в уже потенциально "откатанном" списке updatedDebts
         updatedDebts = updatedDebts.map(d => {
           if (d.id === finalTx.linkedDebtId) {
             const newAmount = action === 'increase' ? d.amount + amount : Math.max(0, d.amount - amount);
@@ -213,6 +228,7 @@ const AppContent: React.FC = () => {
           return d;
         });
       } else if (newDebtName && action === 'increase') {
+        // Создание нового долга
         const debtType = finalTx.type === 'expense' ? 'they_owe' : 'i_owe';
         const newDebt: Debt = {
           id: `debt_${Date.now()}`,
@@ -238,7 +254,30 @@ const AppContent: React.FC = () => {
   };
 
   const handleDeleteTransaction = (id: string) => {
-    handleUpdateState({ transactions: state.transactions.filter(t => t.id !== id) });
+    const txToDelete = state.transactions.find(t => t.id === id);
+    if (!txToDelete) return;
+
+    let updatedDebts = [...state.debts];
+
+    // Если удаляемая транзакция была связана с долгом, нужно вернуть сумму долга в исходное состояние
+    if (txToDelete.linkedDebtId) {
+      updatedDebts = updatedDebts.map(d => {
+        if (d.id === txToDelete.linkedDebtId) {
+          // Если транзакция увеличивала долг, при удалении мы его уменьшаем
+          // Если уменьшала (возврат), при удалении возвращаем сумму в долг
+          const reversalAmount = txToDelete.debtAction === 'increase' 
+            ? -txToDelete.amount 
+            : txToDelete.amount;
+          return { ...d, amount: Math.max(0, d.amount + reversalAmount) };
+        }
+        return d;
+      });
+    }
+
+    handleUpdateState({ 
+      transactions: state.transactions.filter(t => t.id !== id),
+      debts: updatedDebts
+    });
   };
 
   if (isLoading) {
