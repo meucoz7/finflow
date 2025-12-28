@@ -30,6 +30,7 @@ const userSchema = new mongoose.Schema({
   telegramId: { type: Number, required: true, unique: true },
   firstName: String,
   partnerId: { type: Number, default: null },
+  pendingPartnerId: { type: Number, default: null }, // Тот, кому мы отправили запрос или от кого ждем
   state: {
     transactions: { type: Array, default: [] },
     categories: { type: Array, default: [] },
@@ -59,12 +60,11 @@ bot.command('start', async (ctx) => {
       });
     }
     
-    // Используем Inline Keyboard вместо обычной Reply Keyboard
     const inlineKeyboard = new InlineKeyboard()
       .webApp('Открыть кошелек 💳', process.env.APP_URL || '');
 
     await ctx.reply(
-      `Привет, <b>${first_name}</b>! 💰\n\nТвой личный финансовый помощник FinFlow готов к работе. Отслеживай расходы, планируй бюджет и копи на цели прямо здесь.`, 
+      `Привет, <b>${first_name}</b>! 💰\n\nТвой личный финансовый помощник FinFlow готов к работе.`, 
       { 
         parse_mode: 'HTML',
         reply_markup: inlineKeyboard 
@@ -72,6 +72,41 @@ bot.command('start', async (ctx) => {
     );
   } catch (err) {
     console.error('Bot Command Error:', err);
+  }
+});
+
+// Обработка кнопок Принять/Отклонить
+bot.on('callback_query:data', async (ctx) => {
+  const data = ctx.callbackQuery.data;
+  const myId = ctx.from.id;
+
+  if (data.startsWith('accept_pair:')) {
+    const requesterId = parseInt(data.split(':')[1]);
+    
+    // Связываем пользователей
+    await User.findOneAndUpdate({ telegramId: myId }, { partnerId: requesterId, pendingPartnerId: null });
+    await User.findOneAndUpdate({ telegramId: requesterId }, { partnerId: myId, pendingPartnerId: null });
+
+    await ctx.answerCallbackQuery({ text: "Бюджет успешно объединен! ✅" });
+    await ctx.editMessageText("<b>Вы приняли запрос!</b>\nТеперь ваши общие траты будут синхронизированы. 🤝", { parse_mode: 'HTML' });
+    
+    // Уведомляем инициатора
+    try {
+      await bot.api.sendMessage(requesterId, `💳 <b>${ctx.from.first_name}</b> принял ваш запрос на совместный бюджет!`, { parse_mode: 'HTML' });
+    } catch (e) {}
+
+  } else if (data.startsWith('decline_pair:')) {
+    const requesterId = parseInt(data.split(':')[1]);
+    
+    await User.findOneAndUpdate({ telegramId: myId }, { pendingPartnerId: null });
+    await User.findOneAndUpdate({ telegramId: requesterId }, { pendingPartnerId: null });
+
+    await ctx.answerCallbackQuery({ text: "Запрос отклонен." });
+    await ctx.deleteMessage();
+    
+    try {
+      await bot.api.sendMessage(requesterId, `❌ <b>${ctx.from.first_name}</b> отклонил запрос на совместный бюджет.`, { parse_mode: 'HTML' });
+    } catch (e) {}
   }
 });
 
@@ -83,19 +118,22 @@ if (BOT_TOKEN) {
 app.get('/api/user-state/:id', async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    let user = await User.findOne({ telegramId: userId });
+    const user = await User.findOne({ telegramId: userId });
     
-    // Если пользователь не найден, создаем пустой профиль сразу
     if (!user) {
-      user = await User.create({
+      const newUser = await User.create({
         telegramId: userId,
         state: { profile: { name: 'Пользователь', currency: '₽' } }
       });
+      return res.json({ state: newUser.state, partnerId: null, pendingPartnerId: null });
     }
     
-    res.json({ state: user.state });
+    res.json({ 
+      state: user.state, 
+      partnerId: user.partnerId, 
+      pendingPartnerId: user.pendingPartnerId 
+    });
   } catch (err) {
-    console.error("GET user-state error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -113,19 +151,62 @@ app.post('/api/user-state/:id', async (req, res) => {
   }
 });
 
+// Запрос на связку (отправка сообщения партнеру)
+app.post('/api/request-pairing', async (req, res) => {
+  const { myId, partnerId } = req.body;
+  try {
+    const me = await User.findOne({ telegramId: myId });
+    const partner = await User.findOne({ telegramId: partnerId });
+
+    if (!partner) {
+      return res.status(404).json({ error: 'Пользователь не найден в системе. Попросите партнера сначала запустить бота.' });
+    }
+
+    // Сохраняем статус ожидания
+    await User.findOneAndUpdate({ telegramId: myId }, { pendingPartnerId: partnerId });
+    await User.findOneAndUpdate({ telegramId: partnerId }, { pendingPartnerId: myId });
+
+    const keyboard = new InlineKeyboard()
+      .text('Принять ✅', `accept_pair:${myId}`)
+      .text('Отклонить ❌', `decline_pair:${myId}`);
+
+    await bot.api.sendMessage(partnerId, 
+      `🤝 <b>${me.firstName || 'Пользователь'}</b> хочет создать с вами общий бюджет в FinFlow!\n\nВы сможете видеть общие транзакции друг друга.`, 
+      { parse_mode: 'HTML', reply_markup: keyboard }
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Ошибка при отправке запроса' });
+  }
+});
+
+app.post('/api/cancel-pairing', async (req, res) => {
+  const { myId } = req.body;
+  try {
+    const me = await User.findOne({ telegramId: myId });
+    if (me.partnerId) {
+       await User.findOneAndUpdate({ telegramId: me.partnerId }, { partnerId: null, pendingPartnerId: null });
+    }
+    if (me.pendingPartnerId) {
+       await User.findOneAndUpdate({ telegramId: me.pendingPartnerId }, { pendingPartnerId: null });
+    }
+    await User.findOneAndUpdate({ telegramId: myId }, { partnerId: null, pendingPartnerId: null });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- Serving Build Assets ---
 const distPath = path.join(__dirname, 'dist');
-
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
-  app.get(/^(?!\/api).*$/, (req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
-  });
+  app.get(/^(?!\/api).*$/, (req, res) => res.sendFile(path.join(distPath, 'index.html')));
 } else {
   app.use(express.static(__dirname));
-  app.get(/^(?!\/api).*$/, (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-  });
+  app.get(/^(?!\/api).*$/, (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 }
 
 const PORT = process.env.PORT || 3000;
@@ -134,7 +215,6 @@ app.listen(PORT, async () => {
   if (process.env.APP_URL && BOT_TOKEN) {
     try {
       await bot.api.setWebhook(`${process.env.APP_URL}/api/bot/${BOT_TOKEN}`);
-      console.log(`📡 Webhook set to: ${process.env.APP_URL}/api/bot/${BOT_TOKEN}`);
     } catch (err) {
       console.error('❌ Webhook error:', err);
     }

@@ -5,7 +5,7 @@ export interface Account {
   id: string;
   name: string;
   type: 'card' | 'cash';
-  balance: number; // Начальный баланс
+  balance: number;
   color: string;
   icon: string;
 }
@@ -23,13 +23,13 @@ export interface Transaction {
   amount: number;
   categoryId: string;
   accountId: string;
-  date: string; // ISO string
+  date: string;
   note: string;
   type: TransactionType;
   isPlanned?: boolean;
-  isJoint?: boolean; // Флаг совместной траты
-  linkedDebtId?: string; // Связанный долг
-  debtAction?: 'increase' | 'decrease'; // Увеличить или уменьшить долг
+  isJoint?: boolean;
+  linkedDebtId?: string;
+  debtAction?: 'increase' | 'decrease';
 }
 
 export interface Debt {
@@ -37,10 +37,10 @@ export interface Debt {
   personName: string;
   amount: number;
   type: 'i_owe' | 'they_owe';
-  isBank?: boolean; // Флаг банковского обязательства
-  isMonthly?: boolean; // Ежемесячный платеж
-  dueDate?: string; // Дата платежа (ближайшего)
-  endDate?: string; // Дата окончания выплаты
+  isBank?: boolean;
+  isMonthly?: boolean;
+  dueDate?: string;
+  endDate?: string;
   date: string;
   description: string;
 }
@@ -58,6 +58,8 @@ export interface UserProfile {
   name: string;
   currency: string;
   avatar?: string;
+  partnerId?: number | null;
+  pendingPartnerId?: number | null;
 }
 
 export interface AppState {
