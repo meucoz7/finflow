@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { HashRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
@@ -15,7 +15,7 @@ import { AnalyticsPage } from './pages/AnalyticsPage';
 import { TransactionModal } from './components/TransactionModal';
 import { AppState, Transaction } from './types';
 import { DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS } from './constants';
-import { Loader2, CloudOff, Wifi } from 'lucide-react';
+import { Loader2, CloudOff } from 'lucide-react';
 
 const MOCK_STATE: AppState = {
   transactions: [],
@@ -26,14 +26,14 @@ const MOCK_STATE: AppState = {
   profile: { name: 'Гость', currency: '₽' }
 };
 
-// Вспомогательный компонент для синхронизации BackButton Telegram
+// Нативная навигация Telegram BackButton
 const TelegramNavigation: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const tg = (window as any).Telegram?.WebApp;
 
   useEffect(() => {
-    if (!tg) return;
+    if (!tg?.BackButton) return;
 
     if (location.pathname === '/') {
       tg.BackButton.hide();
@@ -47,19 +47,20 @@ const TelegramNavigation: React.FC = () => {
     return () => {
       tg.BackButton.offClick(handleBack);
     };
-  }, [location, navigate, tg]);
+  }, [location.pathname, navigate, tg]);
 
   return null;
 };
 
+// Скелетон загрузки (копия структуры Дашборда)
 const SkeletonLoader = () => (
-  <div className="flex flex-col min-h-screen bg-slate-50 p-6 space-y-6 animate-pulse">
+  <div className="flex flex-col min-h-screen bg-[#f8fafc] safe-top p-6 space-y-8 animate-pulse">
     <div className="flex justify-between items-center">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-slate-200 rounded-xl" />
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 bg-slate-200 rounded-2xl" />
         <div className="space-y-2">
-          <div className="w-20 h-2 bg-slate-200 rounded" />
-          <div className="w-24 h-3 bg-slate-200 rounded" />
+          <div className="w-16 h-2.5 bg-slate-200 rounded" />
+          <div className="w-28 h-4 bg-slate-200 rounded" />
         </div>
       </div>
       <div className="flex gap-2">
@@ -67,14 +68,14 @@ const SkeletonLoader = () => (
         <div className="w-10 h-10 bg-slate-200 rounded-xl" />
       </div>
     </div>
-    <div className="grid grid-cols-2 gap-3 h-36">
-      <div className="bg-slate-200 rounded-[2.2rem]" />
-      <div className="bg-slate-200 rounded-[2.2rem]" />
+    <div className="grid grid-cols-2 gap-4 h-40">
+      <div className="bg-slate-200 rounded-[2.5rem]" />
+      <div className="bg-slate-200 rounded-[2.5rem]" />
     </div>
-    <div className="space-y-4">
-      <div className="w-32 h-3 bg-slate-200 rounded" />
-      <div className="space-y-3">
-        {[1, 2, 3, 4].map(i => (
+    <div className="space-y-6">
+      <div className="w-40 h-4 bg-slate-200 rounded" />
+      <div className="space-y-4">
+        {[1, 2, 3].map(i => (
           <div key={i} className="h-20 bg-white rounded-[2rem] border border-slate-100" />
         ))}
       </div>
@@ -91,16 +92,13 @@ const AppContent: React.FC = () => {
 
   const tg = (window as any).Telegram?.WebApp;
   const userId = tg?.initDataUnsafe?.user?.id;
+  const hasLoadedData = useRef(false);
 
-  const loadData = useCallback(async () => {
-    if (!userId) {
-      setIsLoading(false);
-      return;
-    }
-
+  // Функция загрузки данных с бэкенда
+  const loadData = useCallback(async (uid: number) => {
     setSyncStatus('syncing');
     try {
-      const res = await fetch(`/api/user-state/${userId}`);
+      const res = await fetch(`/api/user-state/${uid}`);
       if (res.ok) {
         const data = await res.json();
         if (data.state) {
@@ -109,6 +107,11 @@ const AppContent: React.FC = () => {
             ...data.state,
             categories: data.state.categories?.length ? data.state.categories : DEFAULT_CATEGORIES,
             accounts: data.state.accounts?.length ? data.state.accounts : DEFAULT_ACCOUNTS,
+            profile: {
+              ...prev.profile,
+              ...data.state.profile,
+              name: data.state.profile?.name || tg?.initDataUnsafe?.user?.first_name || 'Пользователь'
+            }
           }));
         }
         setSyncStatus('synced');
@@ -120,22 +123,36 @@ const AppContent: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, [tg]);
 
+  // Инициализация при входе
   useEffect(() => {
     if (tg) {
       tg.ready();
-      tg.expand();
+      // Разворачиваем только на телефонах, чтобы не ломать вид на ПК
+      if (['android', 'ios'].includes(tg.platform)) {
+        tg.expand();
+      }
       tg.setHeaderColor('#f8fafc');
     }
 
-    loadData();
+    // Если ID есть сразу - грузим, если нет - ждем 1 сек и отключаем лоадер (запуск вне TG)
+    if (userId) {
+      loadData(userId);
+      hasLoadedData.current = true;
+    } else {
+      const timer = setTimeout(() => {
+        if (!hasLoadedData.current) setIsLoading(false);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
 
-    // Слушатель восстановления интернета
-    window.addEventListener('online', loadData);
-    return () => window.removeEventListener('online', loadData);
-  }, [tg, loadData]);
+    const handleOnline = () => userId && loadData(userId);
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [userId, tg, loadData]);
 
+  // Автосохранение
   useEffect(() => {
     if (!userId || syncStatus === 'local' || isLoading) return;
 
@@ -181,35 +198,39 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <Layout onAddClick={() => { setEditingTransaction(null); setIsModalOpen(true); }}>
-      <TelegramNavigation />
-      <div className="fixed top-2 right-2 z-[1000] pointer-events-none opacity-50 flex items-center gap-2">
-        {syncStatus === 'syncing' && <Loader2 size={10} className="animate-spin text-indigo-400" />}
-        {syncStatus === 'error' && <CloudOff size={10} className="text-rose-400" />}
-      </div>
+    <div className="app-container">
+      <Layout onAddClick={() => { setEditingTransaction(null); setIsModalOpen(true); }}>
+        <TelegramNavigation />
+        
+        {/* Индикатор синхронизации */}
+        <div className="fixed top-4 right-4 z-[2000] pointer-events-none opacity-30">
+          {syncStatus === 'syncing' && <Loader2 size={12} className="animate-spin text-indigo-500" />}
+          {syncStatus === 'error' && <CloudOff size={12} className="text-rose-500" />}
+        </div>
 
-      <Routes>
-        <Route path="/" element={<Dashboard state={state} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsModalOpen(true); }} onDeleteTransaction={handleDeleteTransaction} />} />
-        <Route path="/accounts" element={<AccountsPage state={state} onUpdateState={handleUpdateState} />} />
-        <Route path="/joint" element={<JointBudget state={state} onUpdateState={handleUpdateState} />} />
-        <Route path="/calendar" element={<CalendarPage state={state} onUpdateState={handleUpdateState} />} />
-        <Route path="/categories" element={<Categories state={state} onUpdateState={handleUpdateState} />} />
-        <Route path="/debts" element={<Debts state={state} onUpdateState={handleUpdateState} />} />
-        <Route path="/savings" element={<Savings state={state} onUpdateState={handleUpdateState} />} />
-        <Route path="/profile" element={<Profile state={state} onUpdateState={handleUpdateState} />} />
-        <Route path="/ai-chat" element={<AIChatPage state={state} />} />
-        <Route path="/analytics" element={<AnalyticsPage state={state} />} />
-      </Routes>
+        <Routes>
+          <Route path="/" element={<Dashboard state={state} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsModalOpen(true); }} onDeleteTransaction={handleDeleteTransaction} />} />
+          <Route path="/accounts" element={<AccountsPage state={state} onUpdateState={handleUpdateState} />} />
+          <Route path="/joint" element={<JointBudget state={state} onUpdateState={handleUpdateState} />} />
+          <Route path="/calendar" element={<CalendarPage state={state} onUpdateState={handleUpdateState} />} />
+          <Route path="/categories" element={<Categories state={state} onUpdateState={handleUpdateState} />} />
+          <Route path="/debts" element={<Debts state={state} onUpdateState={handleUpdateState} />} />
+          <Route path="/savings" element={<Savings state={state} onUpdateState={handleUpdateState} />} />
+          <Route path="/profile" element={<Profile state={state} onUpdateState={handleUpdateState} />} />
+          <Route path="/ai-chat" element={<AIChatPage state={state} />} />
+          <Route path="/analytics" element={<AnalyticsPage state={state} />} />
+        </Routes>
 
-      <TransactionModal 
-        isOpen={isModalOpen} 
-        onClose={() => { setIsModalOpen(false); setEditingTransaction(null); }} 
-        onSave={handleSaveTransaction}
-        categories={state.categories}
-        accounts={state.accounts}
-        initialData={editingTransaction || undefined}
-      />
-    </Layout>
+        <TransactionModal 
+          isOpen={isModalOpen} 
+          onClose={() => { setIsModalOpen(false); setEditingTransaction(null); }} 
+          onSave={handleSaveTransaction}
+          categories={state.categories}
+          accounts={state.accounts}
+          initialData={editingTransaction || undefined}
+        />
+      </Layout>
+    </div>
   );
 };
 

@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#6366f1">
-    <title>FinFlow - Mistral Edition</title>
+    <meta name="theme-color" content="#f8fafc">
+    <title>FinFlow</title>
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -14,9 +14,7 @@
     <style>
         :root {
             --tg-theme-bg-color: #f8fafc;
-            --tg-theme-secondary-bg-color: #ffffff;
             --tg-theme-text-color: #0f172a;
-            --tg-theme-accent: #6366f1;
         }
         body {
             font-family: 'Manrope', sans-serif;
@@ -25,20 +23,40 @@
             margin: 0; padding: 0;
             overscroll-behavior-y: contain;
             -webkit-tap-highlight-color: transparent;
+            min-height: 100vh;
         }
-        #root { min-height: 100vh; }
+        #root { 
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        /* Адаптивность: на мобилках во весь экран, на ПК центрируем */
+        @media (min-width: 640px) {
+            .app-container {
+                max-width: 450px;
+                margin: 0 auto;
+                border-left: 1px solid rgba(0,0,0,0.05);
+                border-right: 1px solid rgba(0,0,0,0.05);
+                min-height: 100vh;
+                background: #f8fafc;
+            }
+        }
         .glass-nav {
             background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border-top: 1px solid rgba(0, 0, 0, 0.05);
+            padding-bottom: env(safe-area-inset-bottom);
         }
-        @keyframes slideUp {
-            0% { transform: translateY(20px); opacity: 0; }
-            100% { transform: translateY(0); opacity: 1; }
-        }
-        .animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        .safe-top { padding-top: env(safe-area-inset-top); }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
     </style>
 <script type="importmap">
 {

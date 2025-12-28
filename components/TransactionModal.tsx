@@ -40,14 +40,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
         setIsPlanned(initialData.isPlanned || false);
         setIsJoint(initialData.isJoint || false);
       } else {
-        setAmount(''); 
-        setCategoryId(''); 
-        setNote(''); 
-        setStatusText(''); 
-        setIsJoint(false);
+        setAmount(''); setCategoryId(''); setNote(''); setStatusText(''); setIsJoint(false);
         setIsPlanned(false);
-        setType('expense');
-        setDate(new Date().toISOString().split('T')[0]);
         if (accounts.length > 0) setAccountId(accounts[0].id);
       }
     }
@@ -132,7 +126,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
     <div className="fixed inset-0 z-[100] flex items-end justify-center">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
       
-      <div className="relative w-full max-w-md bg-white rounded-t-[3rem] shadow-2xl animate-slide-up flex flex-col max-h-[95vh]">
+      <div className="relative w-full max-w-md bg-white rounded-t-[3rem] shadow-2xl animate-slide-up flex flex-col max-h-[95vh] pb-safe">
         <div className="w-16 h-1.5 bg-slate-100 rounded-full mx-auto mt-4 mb-2" />
 
         <div className="px-8 pb-10 overflow-y-auto no-scrollbar">
@@ -151,17 +145,15 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
             </div>
 
             <div className="space-y-3">
-              {!initialData && (
-                <button 
-                  type="button" 
-                  onClick={() => fileInputRef.current?.click()} 
-                  disabled={isProcessing}
-                  className="w-full py-4 bg-indigo-50 border border-indigo-100 rounded-2xl text-indigo-600 text-[12px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-indigo-100 transition-all active:scale-95 disabled:opacity-50"
-                >
-                  {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Camera size={18} />}
-                  {statusText || 'Сканировать чек'}
-                </button>
-              )}
+              <button 
+                type="button" 
+                onClick={() => fileInputRef.current?.click()} 
+                disabled={isProcessing}
+                className="w-full py-4 bg-indigo-50 border border-indigo-100 rounded-2xl text-indigo-600 text-[12px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-indigo-100 transition-all active:scale-95 disabled:opacity-50"
+              >
+                {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Camera size={18} />}
+                {statusText || 'Сканировать чек'}
+              </button>
               <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleFileUpload} />
 
               <div className="relative flex items-center bg-slate-50 rounded-2xl px-6 py-6 border border-slate-100">
@@ -217,7 +209,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
               </div>
             </div>
 
-            <button type="submit" disabled={!amount || !categoryId || !accountId || isProcessing} className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-bold text-[15px] uppercase tracking-[0.1em] shadow-xl shadow-slate-200 active:scale-[0.98] transition-all disabled:opacity-20 mt-4">
+            <button type="submit" disabled={!amount || !categoryId || !accountId || isProcessing} className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-bold text-[15px] uppercase tracking-[0.1em] shadow-xl shadow-slate-200 active:scale-[0.98] transition-all disabled:opacity-20 mt-4 mb-8">
               {initialData ? 'Обновить' : 'Сохранить'}
             </button>
           </form>
