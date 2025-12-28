@@ -13,9 +13,14 @@ app.use(express.json({ limit: '10mb' }));
 app.use(cors());
 
 // --- Database Connection ---
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ MongoDB Connected'))
-  .catch(err => console.error('❌ MongoDB Connection Error:', err));
+const MONGO_URI = process.env.MONGO_URI;
+if (!MONGO_URI) {
+  console.error('❌ FATAL: MONGO_URI is not defined in Environment Variables');
+} else {
+  mongoose.connect(MONGO_URI)
+    .then(() => console.log('✅ MongoDB Connected'))
+    .catch(err => console.error('❌ MongoDB Connection Error:', err));
+}
 
 const userSchema = new mongoose.Schema({
   telegramId: { type: Number, required: true, unique: true },
@@ -35,7 +40,12 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 
 // --- Telegram Bot ---
-const bot = new Bot(process.env.BOT_TOKEN);
+const BOT_TOKEN = process.env.BOT_TOKEN;
+if (!BOT_TOKEN) {
+  console.error('❌ FATAL: BOT_TOKEN is not defined');
+}
+
+const bot = new Bot(BOT_TOKEN || 'dummy_token');
 
 bot.command('start', async (ctx) => {
   const { id, first_name } = ctx.from;
@@ -64,8 +74,9 @@ bot.command('start', async (ctx) => {
 });
 
 // Настройка Webhook эндпоинта
-// Используем BOT_TOKEN в пути для безопасности (никто не угадает URL)
-app.use(`/api/bot/${process.env.BOT_TOKEN}`, webhookCallback(bot, 'express'));
+if (BOT_TOKEN) {
+  app.use(`/api/bot/${BOT_TOKEN}`, webhookCallback(bot, 'express'));
+}
 
 // --- API Endpoints ---
 
@@ -138,9 +149,8 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
   
-  // Установка вебхука при запуске сервера
-  if (process.env.APP_URL) {
-    const webhookUrl = `${process.env.APP_URL}/api/bot/${process.env.BOT_TOKEN}`;
+  if (process.env.APP_URL && BOT_TOKEN) {
+    const webhookUrl = `${process.env.APP_URL}/api/bot/${BOT_TOKEN}`;
     try {
       await bot.api.setWebhook(webhookUrl);
       console.log(`📡 Webhook set to: ${webhookUrl}`);
@@ -148,6 +158,6 @@ app.listen(PORT, async () => {
       console.error('❌ Failed to set webhook:', err);
     }
   } else {
-    console.warn('⚠️ APP_URL not set. Webhook not configured.');
+    console.warn('⚠️ Webhook not configured: APP_URL or BOT_TOKEN missing.');
   }
 });

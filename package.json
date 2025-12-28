@@ -5,7 +5,8 @@
   "description": "Telegram Mini App with Mistral AI and MongoDB",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build": "echo 'No build step required for this configuration'"
   },
   "dependencies": {
     "express": "^4.21.0",
