@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Calendar, Wallet, Loader2, QrCode, Camera, Clock, CreditCard, Users, Sparkles, Check } from 'lucide-react';
+import { X, Calendar, Wallet, Loader2, QrCode, Clock, CreditCard, Users, Check } from 'lucide-react';
 import { Transaction, Category, TransactionType, Account } from '../types';
-import { processVisualInput } from '../services/aiService';
 import jsQR from 'jsqr';
 
 interface TransactionModalProps {
@@ -70,7 +69,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
     reader.readAsDataURL(file);
     reader.onloadend = async () => {
       const base64Full = reader.result as string;
-      const base64Data = base64Full.split(',')[1];
       const img = new Image();
       img.src = base64Full;
       img.onload = async () => {
@@ -82,22 +80,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
         if (imageData) {
           const code = jsQR(imageData.data, imageData.width, imageData.height);
           if (code && parseQRString(code.data)) {
-            setIsProcessing(false); return;
+            setIsProcessing(false);
+            setTimeout(() => setStatusText(''), 3000);
+            return;
           }
         }
-        setStatusText('Анализ...');
-        const result = await processVisualInput(base64Data, categories);
-        if (result && result.amount) {
-          setAmount(result.amount.toString());
-          if (result.categoryName) {
-            const cat = categories.find(c => c.name.toLowerCase().includes(result.categoryName.toLowerCase()));
-            if (cat) setCategoryId(cat.id);
-          }
-          if (result.note) setNote(result.note);
-          setStatusText('Готово! ✨');
-        } else {
-          setStatusText('Ошибка.');
-        }
+        setStatusText('QR-код не найден.');
         setIsProcessing(false);
         setTimeout(() => setStatusText(''), 3000);
       };
@@ -149,10 +137,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
                 type="button" 
                 onClick={() => fileInputRef.current?.click()} 
                 disabled={isProcessing}
-                className="w-full py-4 bg-indigo-50 border border-indigo-100 rounded-2xl text-indigo-600 text-[12px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-indigo-100 transition-all active:scale-95 disabled:opacity-50"
+                className="w-full py-4 bg-slate-50 border border-slate-100 rounded-2xl text-slate-500 text-[12px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-slate-100 transition-all active:scale-95 disabled:opacity-50"
               >
-                {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Camera size={18} />}
-                {statusText || 'Сканировать чек'}
+                {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <QrCode size={18} />}
+                {statusText || 'Сканировать QR'}
               </button>
               <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleFileUpload} />
 

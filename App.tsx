@@ -10,7 +10,6 @@ import { Profile } from './pages/Profile';
 import { Savings } from './pages/Savings';
 import { AccountsPage } from './pages/AccountsPage';
 import { JointBudget } from './pages/JointBudget';
-import { AIChatPage } from './pages/AIChatPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { TransactionModal } from './components/TransactionModal';
 import { AppState, Transaction } from './types';
@@ -26,7 +25,6 @@ const MOCK_STATE: AppState = {
   profile: { name: 'Гость', currency: '₽' }
 };
 
-// Нативная навигация Telegram BackButton
 const TelegramNavigation: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,10 +50,9 @@ const TelegramNavigation: React.FC = () => {
   return null;
 };
 
-// Скелетон загрузки (копия структуры Дашборда)
 const SkeletonLoader = () => (
-  <div className="flex flex-col min-h-screen bg-[#f8fafc] safe-top p-6 space-y-8 animate-pulse">
-    <div className="flex justify-between items-center">
+  <div className="flex flex-col min-h-screen bg-[#f8fafc] p-6 space-y-8 animate-pulse w-full max-w-md mx-auto">
+    <div className="flex justify-between items-center mt-4">
       <div className="flex items-center gap-4">
         <div className="w-12 h-12 bg-slate-200 rounded-2xl" />
         <div className="space-y-2">
@@ -68,17 +65,19 @@ const SkeletonLoader = () => (
         <div className="w-10 h-10 bg-slate-200 rounded-xl" />
       </div>
     </div>
-    <div className="grid grid-cols-2 gap-4 h-40">
-      <div className="bg-slate-200 rounded-[2.5rem]" />
-      <div className="bg-slate-200 rounded-[2.5rem]" />
+    <div className="grid grid-cols-5 gap-3 h-32">
+        <div className="col-span-3 bg-slate-200 rounded-[2rem]" />
+        <div className="col-span-2 bg-slate-200 rounded-[2rem]" />
     </div>
-    <div className="space-y-6">
+    <div className="grid grid-cols-2 gap-3 h-24">
+      <div className="bg-slate-200 rounded-3xl" />
+      <div className="bg-slate-200 rounded-3xl" />
+    </div>
+    <div className="space-y-4">
       <div className="w-40 h-4 bg-slate-200 rounded" />
-      <div className="space-y-4">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="h-20 bg-white rounded-[2rem] border border-slate-100" />
-        ))}
-      </div>
+      {[1, 2].map(i => (
+        <div key={i} className="h-20 bg-white rounded-[2rem] border border-slate-100" />
+      ))}
     </div>
   </div>
 );
@@ -91,10 +90,8 @@ const AppContent: React.FC = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   const tg = (window as any).Telegram?.WebApp;
-  const userId = tg?.initDataUnsafe?.user?.id;
-  const hasLoadedData = useRef(false);
+  const hasAttemptedLoad = useRef(false);
 
-  // Функция загрузки данных с бэкенда
   const loadData = useCallback(async (uid: number) => {
     setSyncStatus('syncing');
     try {
@@ -125,35 +122,26 @@ const AppContent: React.FC = () => {
     }
   }, [tg]);
 
-  // Инициализация при входе
   useEffect(() => {
     if (tg) {
       tg.ready();
-      // Разворачиваем только на телефонах, чтобы не ломать вид на ПК
-      if (['android', 'ios'].includes(tg.platform)) {
-        tg.expand();
-      }
       tg.setHeaderColor('#f8fafc');
+      tg.setBackgroundColor('#f8fafc');
+      
+      const userId = tg.initDataUnsafe?.user?.id;
+      
+      if (userId && !hasAttemptedLoad.current) {
+        hasAttemptedLoad.current = true;
+        loadData(userId);
+      } else if (!userId) {
+        // Если ID нет (например, запуск в браузере), выключаем лоадер через небольшую паузу
+        setTimeout(() => setIsLoading(false), 500);
+      }
     }
+  }, [tg, loadData]);
 
-    // Если ID есть сразу - грузим, если нет - ждем 1 сек и отключаем лоадер (запуск вне TG)
-    if (userId) {
-      loadData(userId);
-      hasLoadedData.current = true;
-    } else {
-      const timer = setTimeout(() => {
-        if (!hasLoadedData.current) setIsLoading(false);
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-
-    const handleOnline = () => userId && loadData(userId);
-    window.addEventListener('online', handleOnline);
-    return () => window.removeEventListener('online', handleOnline);
-  }, [userId, tg, loadData]);
-
-  // Автосохранение
   useEffect(() => {
+    const userId = tg?.initDataUnsafe?.user?.id;
     if (!userId || syncStatus === 'local' || isLoading) return;
 
     const saveData = async () => {
@@ -173,7 +161,7 @@ const AppContent: React.FC = () => {
 
     const timer = setTimeout(saveData, 2000);
     return () => clearTimeout(timer);
-  }, [state, userId, isLoading, syncStatus]);
+  }, [state, tg, isLoading, syncStatus]);
 
   const handleUpdateState = (newState: Partial<AppState>) => {
     setState(prev => ({ ...prev, ...newState }));
@@ -202,7 +190,6 @@ const AppContent: React.FC = () => {
       <Layout onAddClick={() => { setEditingTransaction(null); setIsModalOpen(true); }}>
         <TelegramNavigation />
         
-        {/* Индикатор синхронизации */}
         <div className="fixed top-4 right-4 z-[2000] pointer-events-none opacity-30">
           {syncStatus === 'syncing' && <Loader2 size={12} className="animate-spin text-indigo-500" />}
           {syncStatus === 'error' && <CloudOff size={12} className="text-rose-500" />}
@@ -217,7 +204,6 @@ const AppContent: React.FC = () => {
           <Route path="/debts" element={<Debts state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/savings" element={<Savings state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/profile" element={<Profile state={state} onUpdateState={handleUpdateState} />} />
-          <Route path="/ai-chat" element={<AIChatPage state={state} />} />
           <Route path="/analytics" element={<AnalyticsPage state={state} />} />
         </Routes>
 

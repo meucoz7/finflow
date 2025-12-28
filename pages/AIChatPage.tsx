@@ -16,7 +16,7 @@ export const AIChatPage: React.FC<{ state: AppState }> = ({ state }) => {
   const [messages, setMessages] = useState<Message[]>([
     { 
       role: 'assistant', 
-      content: `Привет, **${state.profile.name}**! 👋\n\nЯ твой ассистент на базе **Mistral AI**. Готов проанализировать твои финансы.\n\nЧем могу помочь?`,
+      content: `Привет, **${state.profile.name}**! 👋\n\nЯ твой ассистент на базе **Gemini AI**. Готов проанализировать твои финансы.\n\nЧем могу помочь?`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -45,7 +45,7 @@ export const AIChatPage: React.FC<{ state: AppState }> = ({ state }) => {
 
     try {
       const summary = `Баланс: ${state.accounts.reduce((a, b) => a + b.balance, 0)} ${state.profile.currency}.`;
-      const systemInstruction = `Ты - FinFlow AI (Mistral). Будь краток. Твои данные: ${summary}`;
+      const systemInstruction = `Ты - FinFlow AI (Gemini). Будь краток и профессионален. Твои данные: ${summary}`;
 
       const apiHistory = messages.map(m => ({ role: m.role, content: m.content }));
       apiHistory.push({ role: 'user', content: text });
@@ -60,7 +60,7 @@ export const AIChatPage: React.FC<{ state: AppState }> = ({ state }) => {
         }]);
       }
     } catch (error) {
-      setMessages(prev => [...prev, { role: 'assistant', content: "🚨 Ошибка связи с Mistral AI.", timestamp: "сейчас" }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: "🚨 Ошибка связи с Gemini AI.", timestamp: "сейчас" }]);
     } finally {
       setIsGenerating(false);
     }
@@ -77,7 +77,7 @@ export const AIChatPage: React.FC<{ state: AppState }> = ({ state }) => {
             <BrainCircuit size={22} />
           </div>
           <div className="flex flex-col">
-            <h2 className="font-bold text-slate-900 text-[15px]">Mistral AI</h2>
+            <h2 className="font-bold text-slate-900 text-[15px]">Gemini AI</h2>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{isGenerating ? 'Печатает...' : 'Online'}</p>
           </div>
         </div>
@@ -102,7 +102,7 @@ export const AIChatPage: React.FC<{ state: AppState }> = ({ state }) => {
         ))}
         {isGenerating && (
           <div className="flex justify-start">
-             <div className="bg-white px-4 py-2 rounded-2xl border border-slate-200 text-slate-400 text-xs animate-pulse">Mistral думает...</div>
+             <div className="bg-white px-4 py-2 rounded-2xl border border-slate-200 text-slate-400 text-xs animate-pulse">Gemini думает...</div>
           </div>
         )}
         <div ref={chatEndRef} className="h-2" />

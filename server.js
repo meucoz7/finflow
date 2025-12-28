@@ -70,23 +70,6 @@ if (BOT_TOKEN) {
 }
 
 // --- API Endpoints ---
-app.post('/api/ai/chat', async (req, res) => {
-  try {
-    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.API_KEY}`
-      },
-      body: JSON.stringify(req.body)
-    });
-    const data = await response.json();
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 app.get('/api/user-state/:id', async (req, res) => {
   try {
     const user = await User.findOne({ telegramId: parseInt(req.params.id) });
@@ -113,16 +96,12 @@ app.post('/api/user-state/:id', async (req, res) => {
 // --- Serving Build Assets ---
 const distPath = path.join(__dirname, 'dist');
 
-// Если мы в продакшене (папка dist существует)
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
-  
-  // Важно для SPA: любые маршруты, которые не API, отдают index.html
   app.get(/^(?!\/api).*$/, (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 } else {
-  // Для разработки, если dist еще нет
   app.use(express.static(__dirname));
   app.get(/^(?!\/api).*$/, (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));

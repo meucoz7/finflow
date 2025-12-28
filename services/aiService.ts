@@ -1,61 +1,34 @@
 
-import { Category, Transaction, Debt } from "../types";
+import { GoogleGenAI } from "@google/genai";
 
-/**
- * Универсальный вызов Mistral через серверный прокси
- */
-const queryMistral = async (messages: any[], model: string = "mistral-small-latest", responseFormat?: any) => {
+// Fix: Implement sendChatMessage to provide AI-powered financial insights using Gemini.
+export async function sendChatMessage(
+  history: { role: string; content: string }[],
+  systemInstruction: string
+): Promise<string | undefined> {
+  // Always initialize the client with the API key from environment variables.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+  // Map the application-level message roles to Gemini API roles ('user' and 'model').
+  const contents = history.map((msg) => ({
+    role: msg.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: msg.content }],
+  }));
+
   try {
-    const response = await fetch("/api/ai/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages,
-        response_format: responseFormat,
-        temperature: 0.2
-      })
+    // Utilize gemini-3-flash-preview for fast and cost-effective text generation.
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: contents,
+      config: {
+        systemInstruction: systemInstruction,
+      },
     });
 
-    if (!response.ok) throw new Error("API Error");
-    const data = await response.json();
-    return data.choices[0].message.content;
+    // Directly access the text property of the response object.
+    return response.text;
   } catch (error) {
-    console.error("AI Service Error:", error);
-    return null;
+    console.error("Gemini API Error:", error);
+    throw error;
   }
-};
-
-/**
- * Анализ чеков (Pixtral Vision)
- */
-export const processVisualInput = async (base64Image: string, categories: Category[]) => {
-  const categoryList = categories.map(c => c.name).join(", ");
-  const messages = [
-    {
-      role: "user",
-      content: [
-        { type: "text", text: `Извлеки данные из чека. Категории: ${categoryList}. Верни ТОЛЬКО JSON: {"amount": number, "categoryName": "string", "note": "string"}` },
-        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}` } }
-      ]
-    }
-  ];
-
-  const result = await queryMistral(messages, "pixtral-12b-2409", { type: "json_object" });
-  try {
-    return result ? JSON.parse(result) : null;
-  } catch (e) {
-    return null;
-  }
-};
-
-/**
- * Универсальный чат и советы
- */
-export const sendChatMessage = async (history: any[], systemInstruction: string) => {
-  const messages = [
-    { role: "system", content: systemInstruction },
-    ...history
-  ];
-  return await queryMistral(messages);
-};
+}
