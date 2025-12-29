@@ -20,13 +20,15 @@ const SwipeableDebtItem: React.FC<{
   const [startX, setStartX] = useState<number | null>(null);
   const [currentOffset, setCurrentOffset] = useState(0);
   const isThisSwiped = isAnySwiped === debt.id;
+  const isPaid = debt.amount === 0;
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (isPaid) return; // Disable swipe for paid debts
     setStartX(e.touches[0].clientX);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (startX === null) return;
+    if (startX === null || isPaid) return;
     const x = e.touches[0].clientX;
     const diff = x - startX;
     
@@ -38,6 +40,7 @@ const SwipeableDebtItem: React.FC<{
   };
 
   const handleTouchEnd = () => {
+    if (isPaid) return;
     if (currentOffset < -60) {
       setIsAnySwiped(debt.id);
       setCurrentOffset(-120);
@@ -52,38 +55,47 @@ const SwipeableDebtItem: React.FC<{
 
   return (
     <div className="relative overflow-hidden rounded-[2.2rem] h-[82px] touch-pan-y group">
-      <div className="absolute inset-0 bg-slate-50 flex justify-end rounded-[2.2rem] overflow-hidden">
-        <div className="flex h-full px-2 gap-2">
-          <button 
-            onClick={(e) => { e.stopPropagation(); onEdit(debt); setIsAnySwiped(null); }}
-            className="w-[52px] h-full flex items-center justify-center text-indigo-500 active:scale-90 transition-all"
-          >
-            <div className="w-11 h-11 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100">
-              <Edit3 size={18} strokeWidth={2.5} />
-            </div>
-          </button>
-          <button 
-            onClick={(e) => { 
-              e.stopPropagation(); 
-              onDelete(debt.id);
-              setIsAnySwiped(null);
-            }}
-            className="w-[52px] h-full flex items-center justify-center text-rose-500 active:scale-90 transition-all"
-          >
-            <div className="w-11 h-11 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100">
-              <Trash2 size={18} strokeWidth={2.5} />
-            </div>
-          </button>
+      {/* Swipe Actions (только для непогашенных) */}
+      {!isPaid && (
+        <div className="absolute inset-0 bg-slate-50 flex justify-end rounded-[2.2rem] overflow-hidden">
+          <div className="flex h-full px-2 gap-2">
+            <button 
+              onClick={(e) => { e.stopPropagation(); onEdit(debt); setIsAnySwiped(null); }}
+              className="w-[52px] h-full flex items-center justify-center text-indigo-500 active:scale-90 transition-all"
+            >
+              <div className="w-11 h-11 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100">
+                <Edit3 size={18} strokeWidth={2.5} />
+              </div>
+            </button>
+            <button 
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                onDelete(debt.id);
+                setIsAnySwiped(null);
+              }}
+              className="w-[52px] h-full flex items-center justify-center text-rose-500 active:scale-90 transition-all"
+            >
+              <div className="w-11 h-11 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100">
+                <Trash2 size={18} strokeWidth={2.5} />
+              </div>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
+      {/* Main Content Card */}
       <div 
-        className="absolute inset-0 bg-white p-5 rounded-[2.2rem] flex justify-between items-center border border-slate-50 shadow-sm transition-transform duration-500 cubic-bezier(0.16, 1, 0.3, 1) z-10"
+        className={`absolute inset-0 p-5 rounded-[2.2rem] flex justify-between items-center border shadow-sm transition-all duration-500 cubic-bezier(0.16, 1, 0.3, 1) z-10 ${
+          isPaid 
+            ? 'bg-slate-50/50 border-slate-100 opacity-40 blur-[0.5px]' 
+            : 'bg-white border-slate-50'
+        }`}
         style={{ transform: `translateX(${xPos}px)` }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onClick={() => {
+          if (isPaid) return;
           if (isThisSwiped) {
             setIsAnySwiped(null);
           } else {
@@ -92,11 +104,17 @@ const SwipeableDebtItem: React.FC<{
         }}
       >
         <div className="flex items-center gap-4 min-w-0 pointer-events-none">
-          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${debt.isBank ? 'bg-amber-50 text-amber-600' : activeTab === 'i_owe' ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-600'}`}>
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-transform ${
+            isPaid 
+              ? 'bg-slate-200 text-slate-400' 
+              : debt.isBank ? 'bg-amber-50 text-amber-600' : activeTab === 'i_owe' ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-600'
+          }`}>
             {debt.isBank ? <Landmark size={22} /> : activeTab === 'i_owe' ? <UserMinus size={22} /> : <UserPlus size={22} />}
           </div>
           <div className="min-w-0">
-            <h4 className="font-bold text-slate-900 text-[14px] uppercase truncate tracking-tight">{debt.personName}</h4>
+            <h4 className={`font-bold text-[14px] uppercase truncate tracking-tight ${isPaid ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+              {debt.personName}
+            </h4>
             <div className="flex items-center gap-2 mt-0.5">
               <p className="text-[9px] text-slate-400 font-bold uppercase">
                 {debt.dueDate ? new Date(debt.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) : 'Бессрочно'}
@@ -108,12 +126,32 @@ const SwipeableDebtItem: React.FC<{
         </div>
         
         <div className="text-right mr-1 pointer-events-none">
-          <p className={`font-black text-[18px] tracking-tighter leading-none ${activeTab === 'i_owe' ? 'text-rose-500' : 'text-emerald-600'}`}>
+          <p className={`font-black text-[18px] tracking-tighter leading-none ${
+            isPaid ? 'text-slate-300 line-through' : activeTab === 'i_owe' ? 'text-rose-500' : 'text-emerald-600'
+          }`}>
             {debt.amount.toLocaleString()}
           </p>
-          <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-1">Остаток</p>
+          <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-1">
+            {isPaid ? 'Погашено' : 'Остаток'}
+          </p>
         </div>
       </div>
+
+      {/* Центральная кнопка удаления для погашенных долгов */}
+      {isPaid && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(debt.id);
+            }}
+            className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-2xl shadow-xl active:scale-90 transition-all font-black text-[10px] uppercase tracking-widest"
+          >
+            <Trash2 size={14} strokeWidth={3} />
+            Удалить запись
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -131,7 +169,7 @@ export const Debts: React.FC<DebtsProps> = ({ state, onUpdateState }) => {
     type: 'i_owe', 
     isBank: false, 
     isMonthly: false,
-    dueDate: '', // Убрали дату по умолчанию
+    dueDate: '',
     endDate: '',
     date: new Date().toISOString(), 
     description: ''
@@ -147,7 +185,7 @@ export const Debts: React.FC<DebtsProps> = ({ state, onUpdateState }) => {
   }, [state.debts]);
 
   const saveDebt = () => {
-    if (!newDebt.personName || !newDebt.amount) return;
+    if (!newDebt.personName || (newDebt.amount < 0)) return;
     
     if (editingId) {
       const updatedDebts = state.debts.map(d => 

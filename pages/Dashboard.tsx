@@ -14,7 +14,8 @@ import {
   Target, 
   ChevronRight,
   ArrowUpRight,
-  Plus
+  Plus,
+  ArrowRight
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -255,7 +256,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
       <section className="space-y-4 px-1">
         <div className="flex justify-between items-center px-1">
           <h3 className="font-bold text-slate-800 text-[12px] uppercase tracking-widest flex items-center gap-1.5">
-            <History size={16} className="text-indigo-500" /> История
+            <History size={16} className="text-indigo-500" /> Последние записи
           </h3>
           <div className="relative">
              <input 
@@ -271,46 +272,55 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
         
         <div className="space-y-3">
           {filteredTransactions.length > 0 ? (
-            filteredTransactions.map(t => {
-              const cat = categories.find(c => c.id === t.categoryId);
-              const acc = accounts.find(a => a.id === t.accountId);
-              const linkedDebt = debts.find(d => d.id === t.linkedDebtId);
-              
-              const displayName = linkedDebt ? linkedDebt.personName : (cat?.name || 'Операция');
-              const displayIcon = linkedDebt ? (linkedDebt.isBank ? '🏦' : '🤝') : (cat?.icon || '📦');
+            <>
+              {filteredTransactions.map(t => {
+                const cat = categories.find(c => c.id === t.categoryId);
+                const acc = accounts.find(a => a.id === t.accountId);
+                const linkedDebt = debts.find(d => d.id === t.linkedDebtId);
+                
+                const displayName = linkedDebt ? linkedDebt.personName : (cat?.name || 'Операция');
+                const displayIcon = linkedDebt ? (linkedDebt.isBank ? '🏦' : '🤝') : (cat?.icon || '📦');
 
-              return (
-                <div 
-                  key={t.id} 
-                  onClick={() => onEditTransaction(t)}
-                  className="bg-white p-4 rounded-3xl flex items-center justify-between border border-slate-100 shadow-sm active:bg-slate-50 transition-all group"
-                >
-                  <div className="flex items-center gap-4">
-                    <div 
-                      className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shadow-inner group-hover:rotate-6 transition-transform"
-                      style={{ backgroundColor: `${cat?.color || '#6366f1'}15`, color: cat?.color || '#6366f1' }}
-                    >
-                      {displayIcon}
+                return (
+                  <div 
+                    key={t.id} 
+                    onClick={() => onEditTransaction(t)}
+                    className="bg-white p-4 rounded-3xl flex items-center justify-between border border-slate-100 shadow-sm active:bg-slate-50 transition-all group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div 
+                        className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shadow-inner group-hover:rotate-6 transition-transform"
+                        style={{ backgroundColor: `${cat?.color || '#6366f1'}15`, color: cat?.color || '#6366f1' }}
+                      >
+                        {displayIcon}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-slate-900 text-[14px] leading-tight truncate uppercase tracking-tight">{displayName}</p>
+                        <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                          {acc?.name} • {new Date(t.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-slate-900 text-[14px] leading-tight truncate uppercase tracking-tight">{displayName}</p>
-                      <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                        {acc?.name} • {new Date(t.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                    <div className="text-right shrink-0">
+                      <p className={`font-black text-[15px] tracking-tight ${
+                        t.type === 'income' ? 'text-emerald-500' : 
+                        t.type === 'savings' ? 'text-indigo-600' : 'text-slate-900'
+                      }`}>
+                        {t.type === 'income' ? '+' : '-'}{t.amount.toLocaleString()}
                       </p>
+                      <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-0.5">{profile.currency}</p>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className={`font-black text-[15px] tracking-tight ${
-                      t.type === 'income' ? 'text-emerald-500' : 
-                      t.type === 'savings' ? 'text-indigo-600' : 'text-slate-900'
-                    }`}>
-                      {t.type === 'income' ? '+' : '-'}{t.amount.toLocaleString()}
-                    </p>
-                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-0.5">{profile.currency}</p>
-                  </div>
-                </div>
-              );
-            })
+                );
+              })}
+              
+              <Link 
+                to="/history" 
+                className="flex items-center justify-center gap-2 w-full py-4 bg-slate-50 border border-slate-100 rounded-[1.75rem] text-[11px] font-black uppercase tracking-widest text-slate-500 active:scale-[0.98] active:bg-slate-100 transition-all"
+              >
+                Перейти к полной истории <ArrowRight size={14} />
+              </Link>
+            </>
           ) : (
             <div className="text-center py-10 bg-white rounded-[2rem] border border-dashed border-slate-200">
                <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest">Операций не найдено</p>

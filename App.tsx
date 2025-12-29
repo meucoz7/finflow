@@ -11,6 +11,7 @@ import { Savings } from './pages/Savings';
 import { AccountsPage } from './pages/AccountsPage';
 import { JointBudget } from './pages/JointBudget';
 import { AnalyticsPage } from './pages/AnalyticsPage';
+import { FullHistoryPage } from './pages/FullHistoryPage';
 import { TransactionModal } from './components/TransactionModal';
 import { AppState, Transaction, Debt } from './types';
 import { DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS } from './constants';
@@ -304,6 +305,7 @@ const AppContent: React.FC = () => {
           <Route path="/savings" element={<Savings state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/profile" element={<Profile state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/analytics" element={<AnalyticsPage state={state} />} />
+          <Route path="/history" element={<FullHistoryPage state={state} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsModalOpen(true); }} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
