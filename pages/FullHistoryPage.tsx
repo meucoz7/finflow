@@ -25,6 +25,7 @@ type SortOrder = 'newest' | 'oldest';
 export const FullHistoryPage: React.FC<FullHistoryPageProps> = ({ state, onEditTransaction }) => {
   const navigate = useNavigate();
   const { transactions, categories, accounts, profile, debts } = state;
+  const tg = (window as any).Telegram?.WebApp;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('all');
@@ -150,6 +151,14 @@ export const FullHistoryPage: React.FC<FullHistoryPageProps> = ({ state, onEditT
     const start = new Date(customRange.start).getTime();
     const end = new Date(customRange.end).getTime();
     return date >= start && date <= end;
+  };
+
+  const handleTxClick = (t: Transaction) => {
+    if (t.note.startsWith('[ПОДПИСКА]')) {
+      tg?.HapticFeedback?.notificationOccurred('warning');
+      return; // Skip edit modal for subscription payments
+    }
+    onEditTransaction(t);
   };
 
   return (
@@ -279,8 +288,8 @@ export const FullHistoryPage: React.FC<FullHistoryPageProps> = ({ state, onEditT
                   return (
                     <div 
                       key={t.id} 
-                      onClick={() => onEditTransaction(t)}
-                      className="bg-white p-4 rounded-[2.2rem] flex items-center justify-between border border-slate-50 shadow-sm active:scale-[0.98] active:bg-slate-50 transition-all group"
+                      onClick={() => handleTxClick(t)}
+                      className={`bg-white p-4 rounded-[2.2rem] flex items-center justify-between border border-slate-50 shadow-sm transition-all group ${isSubscription ? 'cursor-default' : 'active:scale-[0.98] active:bg-slate-50 cursor-pointer'}`}
                     >
                       <div className="flex items-center gap-4 min-w-0">
                         <div 

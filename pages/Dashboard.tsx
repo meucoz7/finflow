@@ -29,6 +29,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
   const { transactions, profile, debts, savings, categories, accounts, subscriptions = [] } = state;
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
+  const tg = (window as any).Telegram?.WebApp;
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -97,6 +98,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
     if (hour < 12) return 'Доброе утро';
     if (hour < 18) return 'Добрый день';
     return 'Добрый вечер';
+  };
+
+  const handleTxClick = (t: Transaction) => {
+    if (t.note.startsWith('[ПОДПИСКА]')) {
+      tg?.HapticFeedback?.notificationOccurred('warning');
+      return; // Do nothing for subscription payments as requested
+    }
+    onEditTransaction(t);
   };
 
   return (
@@ -314,8 +323,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
                 return (
                   <div 
                     key={t.id} 
-                    onClick={() => onEditTransaction(t)}
-                    className="bg-white p-4 rounded-3xl flex items-center justify-between border border-slate-100 shadow-sm active:bg-slate-50 transition-all group"
+                    onClick={() => handleTxClick(t)}
+                    className={`bg-white p-4 rounded-3xl flex items-center justify-between border border-slate-100 shadow-sm transition-all group ${isSubscription ? 'cursor-default' : 'active:bg-slate-50 active:scale-[0.99] cursor-pointer'}`}
                   >
                     <div className="flex items-center gap-4 min-w-0">
                       <div 
