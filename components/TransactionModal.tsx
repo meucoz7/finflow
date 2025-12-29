@@ -116,7 +116,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || (!categoryId && !isDebtRelated) || !accountId) return;
+    if (!amount || (!categoryId && !isDebtRelated && !isSubscriptionPayment) || !accountId) return;
     
     // Preserve existing prefix if editing a subscription transaction
     const originalIsSub = initialData?.note.startsWith('[ПОДПИСКА]');
@@ -128,7 +128,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
     
     onSave({
       amount: parseFloat(amount),
-      categoryId: categoryId || 'debt_system',
+      categoryId: categoryId || 'subscription_system',
       accountId,
       note: finalNote,
       date: new Date(date).toISOString(),
@@ -221,20 +221,20 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
               {statusText && <p className="text-[9px] text-center font-bold text-indigo-500">{statusText}</p>}
             </div>
 
-            {/* Category Dropdown Button */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => !isSubscriptionPayment && setShowCategoryPicker(!showCategoryPicker)}
-                className={`w-full h-11 px-4 rounded-xl border flex items-center justify-between transition-all ${categoryId ? 'bg-indigo-50 border-indigo-200 shadow-inner' : 'bg-slate-50 border-slate-100'} ${isSubscriptionPayment ? 'opacity-60 cursor-not-allowed' : ''}`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="text-lg">{selectedCategory?.icon || (isDebtRelated ? '🤝' : (isSubscriptionPayment ? <RefreshCw size={14} /> : '📦'))}</span>
-                  <span className={`text-[11px] font-black uppercase tracking-tight ${selectedCategory ? 'text-indigo-900' : 'text-slate-400'}`}>
-                    {selectedCategory?.name || (isDebtRelated ? 'Без категории (Долг)' : (isSubscriptionPayment ? 'Оплата подписки' : 'Выбрать категорию'))}
-                  </span>
-                </div>
-                {!isSubscriptionPayment && (
+            {/* Category Dropdown Button - Hidden for Subscriptions per user request */}
+            {!isSubscriptionPayment && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowCategoryPicker(!showCategoryPicker)}
+                  className={`w-full h-11 px-4 rounded-xl border flex items-center justify-between transition-all ${categoryId ? 'bg-indigo-50 border-indigo-200 shadow-inner' : 'bg-slate-50 border-slate-100'}`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-lg">{selectedCategory?.icon || (isDebtRelated ? '🤝' : '📦')}</span>
+                    <span className={`text-[11px] font-black uppercase tracking-tight ${selectedCategory ? 'text-indigo-900' : 'text-slate-400'}`}>
+                      {selectedCategory?.name || (isDebtRelated ? 'Без категории (Долг)' : 'Выбрать категорию')}
+                    </span>
+                  </div>
                   <div className="flex items-center gap-2">
                     {categoryId && (
                       <div onClick={clearCategory} className="p-1 rounded-md bg-white text-rose-400 hover:text-rose-600 border border-rose-100 shadow-sm transition-all active:scale-75">
@@ -243,33 +243,33 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
                     )}
                     {showCategoryPicker ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
                   </div>
-                )}
-              </button>
+                </button>
 
-              {showCategoryPicker && !isSubscriptionPayment && (
-                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-slate-100 rounded-xl shadow-xl overflow-hidden animate-slide-up max-h-56 overflow-y-auto no-scrollbar p-1 grid grid-cols-3 gap-1">
-                  <button
-                    type="button"
-                    onClick={() => { setCategoryId(''); setShowCategoryPicker(false); }}
-                    className="flex items-center gap-2 p-2 rounded-lg bg-slate-50/50 text-slate-400 italic"
-                  >
-                    <Eraser size={14} />
-                    <span className="text-[9px] font-bold uppercase">Сброс</span>
-                  </button>
-                  {categories.filter(c => c.type === type).map(cat => (
+                {showCategoryPicker && (
+                  <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-slate-100 rounded-xl shadow-xl overflow-hidden animate-slide-up max-h-56 overflow-y-auto no-scrollbar p-1 grid grid-cols-3 gap-1">
                     <button
-                      key={cat.id}
                       type="button"
-                      onClick={() => { setCategoryId(cat.id); setShowCategoryPicker(false); }}
-                      className={`flex items-center gap-2 p-2 rounded-lg transition-all ${categoryId === cat.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-600'}`}
+                      onClick={() => { setCategoryId(''); setShowCategoryPicker(false); }}
+                      className="flex items-center gap-2 p-2 rounded-lg bg-slate-50/50 text-slate-400 italic"
                     >
-                      <span className="text-base">{cat.icon}</span>
-                      <span className="text-[9px] font-bold truncate uppercase">{cat.name}</span>
+                      <Eraser size={14} />
+                      <span className="text-[9px] font-bold uppercase">Сброс</span>
                     </button>
-                  ))}
-                </div>
-              )}
-            </div>
+                    {categories.filter(c => c.type === type).map(cat => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => { setCategoryId(cat.id); setShowCategoryPicker(false); }}
+                        className={`flex items-center gap-2 p-2 rounded-lg transition-all ${categoryId === cat.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-600'}`}
+                      >
+                        <span className="text-base">{cat.icon}</span>
+                        <span className="text-[9px] font-bold truncate uppercase">{cat.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {!isSubscriptionPayment && (type === 'expense' || type === 'income') && (
               <div className="grid grid-cols-2 gap-1.5">
