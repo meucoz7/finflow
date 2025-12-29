@@ -46,8 +46,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
         setAmount(initialData.amount.toString());
         setCategoryId(initialData.categoryId);
         setAccountId(initialData.accountId);
-        // Чистим заметку от префикса при загрузке, чтобы он не дублировался
-        setNote(initialData.note.replace(/^\[ДОЛГ\]\s*/, ''));
+        // Clean note from technical prefixes
+        setNote(initialData.note.replace(/^\[(ПОДПИСКА|ДОЛГ)\]\s*/, ''));
         setDate(initialData.date.split('T')[0]);
         setIsPlanned(initialData.isPlanned || false);
         setIsJoint(initialData.isJoint || false);
@@ -117,8 +117,13 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
     e.preventDefault();
     if (!amount || (!categoryId && !isDebtRelated) || !accountId) return;
     
-    // Формируем финальную заметку, гарантируя только один префикс [ДОЛГ]
-    const finalNote = isDebtRelated ? `[ДОЛГ] ${note.trim()}` : note.trim();
+    // Preserve existing prefix if editing a subscription transaction
+    const originalIsSub = initialData?.note.startsWith('[ПОДПИСКА]');
+    let prefix = '';
+    if (isDebtRelated) prefix = '[ДОЛГ] ';
+    else if (originalIsSub) prefix = '[ПОДПИСКА] ';
+
+    const finalNote = `${prefix}${note.trim()}`;
     
     onSave({
       amount: parseFloat(amount),

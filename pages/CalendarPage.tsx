@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { AppState } from '../types';
+import { AppState, Transaction } from '../types';
 import { 
   Calendar as CalendarIcon, 
   Clock, 
@@ -12,7 +12,8 @@ import {
   ChevronRight,
   AlertCircle,
   X,
-  RefreshCw as RefreshIcon
+  RefreshCw as RefreshIcon,
+  Bell
 } from 'lucide-react';
 
 interface CalendarPageProps {
@@ -20,14 +21,13 @@ interface CalendarPageProps {
   onUpdateState: (newState: Partial<AppState>) => void;
 }
 
-// Помощник для создания даты в локальном часовом поясе без сдвигов
 const parseLocalDate = (dateStr: string) => {
   const [y, m, d] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, d);
 };
 
 export const CalendarPage: React.FC<CalendarPageProps> = ({ state, onUpdateState }) => {
-  const { transactions, categories, debts, profile } = state;
+  const { transactions, categories, debts, profile, subscriptions = [] } = state;
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [isFullCalendarOpen, setIsFullCalendarOpen] = useState(false);
   const [viewDate, setViewDate] = useState(new Date()); 
@@ -62,8 +62,22 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ state, onUpdateState
         isMonthly: d.isMonthly
       }));
 
-    return [...plannedTx, ...debtItems].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [transactions, categories, debts]);
+    const subItems = subscriptions
+      .filter(s => s.isActive)
+      .map(s => ({
+        id: s.id,
+        date: s.nextPaymentDate,
+        amount: s.amount,
+        type: 'expense' as const,
+        title: s.name,
+        icon: s.icon,
+        color: s.color,
+        itemType: 'subscription' as const,
+        reminderDays: s.reminderDays
+      }));
+
+    return [...plannedTx, ...debtItems, ...subItems].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [transactions, categories, debts, subscriptions]);
 
   const monthGrid = useMemo(() => {
     const year = viewDate.getFullYear();
@@ -71,7 +85,6 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ state, onUpdateState
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     let startDay = firstDay.getDay();
-    // Пн = 0, Вс = 6
     startDay = startDay === 0 ? 6 : startDay - 1;
     const days = [];
     for (let i = 0; i < startDay; i++) days.push(null);
@@ -122,6 +135,31 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ state, onUpdateState
         t.id === item.id ? { ...t, isPlanned: false, date: new Date().toISOString() } : t
       );
       onUpdateState({ transactions: newTransactions });
+    } else if (item.itemType === 'subscription') {
+      const sub = subscriptions.find(s => s.id === item.id);
+      if (sub) {
+        // Create actual transaction with prefix for better identification in history
+        const newTx: Transaction = {
+          id: `tx_sub_${Date.now()}`,
+          amount: sub.amount,
+          categoryId: sub.categoryId || categories.find(c => c.type === 'expense')?.id || '4',
+          accountId: sub.accountId,
+          date: new Date().toISOString(),
+          note: `[ПОДПИСКА] ${sub.name}`,
+          type: 'expense'
+        };
+        
+        // Update next payment date
+        const nextDate = new Date(sub.nextPaymentDate);
+        if (sub.period === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+        else if (sub.period === 'yearly') nextDate.setFullYear(nextDate.getFullYear() + 1);
+        else if (sub.period === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+
+        onUpdateState({
+          transactions: [...transactions, newTx],
+          subscriptions: subscriptions.map(s => s.id === item.id ? { ...s, nextPaymentDate: nextDate.toISOString().split('T')[0] } : s)
+        });
+      }
     } else {
       const debt = debts.find(d => d.id === item.id);
       if (debt?.isMonthly) {
@@ -162,7 +200,6 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ state, onUpdateState
         </button>
       </header>
 
-      {/* Mini Calendar Strip */}
       <div 
         ref={scrollRef}
         className="flex gap-2.5 overflow-x-auto no-scrollbar px-1 py-2 scroll-smooth"
@@ -200,7 +237,6 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ state, onUpdateState
         })}
       </div>
 
-      {/* Summary Block - Centered Layout */}
       <div className="mx-1 p-5 bg-slate-900 rounded-[2rem] text-white shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
         <div className="relative z-10 flex justify-between items-center">
@@ -217,7 +253,6 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ state, onUpdateState
         </div>
       </div>
 
-      {/* Task List */}
       <div className="space-y-4 px-1">
         <div className="flex justify-between items-center mb-2 px-1">
           <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -248,7 +283,6 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ state, onUpdateState
         )}
       </div>
 
-      {/* Full Calendar Modal */}
       {isFullCalendarOpen && (
         <div className="fixed inset-0 z-[110] flex items-end justify-center px-4 pb-10">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setIsFullCalendarOpen(false)} />
@@ -300,19 +334,6 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ state, onUpdateState
                 );
               })}
             </div>
-            <div className="mt-8 flex justify-center">
-               <button 
-                onClick={() => {
-                  const today = new Date().toISOString().split('T')[0];
-                  setSelectedDate(today);
-                  setViewDate(new Date());
-                  setIsFullCalendarOpen(false);
-                }}
-                className="px-8 py-4 bg-slate-100 text-slate-500 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
-               >
-                 К сегодняшнему дню
-               </button>
-            </div>
           </div>
         </div>
       )}
@@ -332,7 +353,8 @@ const PlannedItemCard: React.FC<{ item: any; onDone: () => void; profile: any }>
         <div className="flex items-center gap-2 mb-0.5">
            <h5 className="font-bold text-slate-900 text-[14px] truncate uppercase leading-tight tracking-tight">{item.title}</h5>
            {item.isBank && <Landmark size={12} className="text-amber-500" />}
-           {item.isMonthly && <RefreshIcon size={10} className="text-indigo-400" />}
+           {(item.isMonthly || item.itemType === 'subscription') && <RefreshIcon size={10} className="text-indigo-400" />}
+           {item.itemType === 'subscription' && <Bell size={10} className="text-indigo-600" />}
         </div>
         <div className="flex items-center gap-2">
           <p className="text-[9px] text-slate-400 font-black uppercase flex items-center gap-1">

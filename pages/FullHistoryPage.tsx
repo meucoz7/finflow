@@ -10,7 +10,8 @@ import {
   Calendar as CalendarIcon,
   ChevronRight,
   Filter,
-  Check
+  Check,
+  RefreshCw
 } from 'lucide-react';
 
 interface FullHistoryPageProps {
@@ -265,8 +266,15 @@ export const FullHistoryPage: React.FC<FullHistoryPageProps> = ({ state, onEditT
                   const cat = categories.find(c => c.id === t.categoryId);
                   const acc = accounts.find(a => a.id === t.accountId);
                   const linkedDebt = debts.find(d => d.id === t.linkedDebtId);
+                  const isSubscription = t.note.startsWith('[ПОДПИСКА]');
+                  
                   const displayName = linkedDebt ? linkedDebt.personName : (cat?.name || 'Операция');
-                  const displayIcon = linkedDebt ? (linkedDebt.isBank ? '🏦' : '🤝') : (cat?.icon || '📦');
+                  const displayIcon = linkedDebt 
+                    ? (linkedDebt.isBank ? '🏦' : '🤝') 
+                    : (isSubscription ? <RefreshCw size={18} className="text-indigo-500" /> : (cat?.icon || '📦'));
+                  
+                  // Clean display note for the subtitle
+                  const cleanNote = t.note.replace(/^\[(ПОДПИСКА|ДОЛГ)\]\s*/, '');
 
                   return (
                     <div 
@@ -283,19 +291,22 @@ export const FullHistoryPage: React.FC<FullHistoryPageProps> = ({ state, onEditT
                         </div>
                         <div className="min-w-0">
                           <h4 className="font-bold text-slate-900 text-[14px] leading-tight truncate uppercase tracking-tight">
-                            {displayName}
+                            {isSubscription ? cleanNote : displayName}
                           </h4>
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-[10px] text-slate-400 font-bold uppercase truncate">
                               {acc?.name}
                             </span>
-                            {t.note && (
+                            {cleanNote && !isSubscription && (
                               <>
                                 <div className="w-1 h-1 bg-slate-200 rounded-full" />
                                 <span className="text-[10px] text-slate-300 font-medium truncate italic max-w-[120px]">
-                                  {t.note.replace(/^\[ДОЛГ\]\s*/, '')}
+                                  {cleanNote}
                                 </span>
                               </>
+                            )}
+                            {isSubscription && (
+                               <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 px-1.5 py-0.5 rounded ml-1">Подписка</span>
                             )}
                           </div>
                         </div>

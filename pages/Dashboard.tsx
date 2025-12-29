@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AppState, Transaction, SavingsGoal } from '../types';
+import { AppState, Transaction, SavingsGoal, Subscription } from '../types';
 import { 
   Wallet, 
   Handshake, 
@@ -15,7 +15,8 @@ import {
   ChevronRight,
   ArrowUpRight,
   Plus,
-  ArrowRight
+  ArrowRight,
+  RefreshCw
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -25,7 +26,7 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, onDeleteTransaction }) => {
-  const { transactions, profile, debts, savings, categories, accounts } = state;
+  const { transactions, profile, debts, savings, categories, accounts, subscriptions = [] } = state;
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
 
@@ -48,19 +49,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
 
     const currentBalance = accounts.reduce((s: number, a) => s + a.balance, 0) + (allTimeIncome - allTimeExpense - allTimeSavings);
     
-    // Logic for debts
     const theyOweMe = debts.filter(d => d.type === 'they_owe').reduce((s: number, d) => s + d.amount, 0);
     const iOwe = debts.filter(d => d.type === 'i_owe' && !d.isBank).reduce((s: number, d) => s + d.amount, 0);
     const netDebt = theyOweMe - iOwe;
     
     const totalSavingsValue = savings.reduce((s: number, g: SavingsGoal) => s + g.currentAmount, 0) + allTimeSavings;
     
-    // Net worth calculation based on setting
     const netWorth = profile.includeDebtsInCapital 
       ? currentBalance + totalSavingsValue + netDebt
       : currentBalance + totalSavingsValue;
 
-    // Calculate goals progress percentage
     const totalTarget = savings.reduce((s, g) => s + g.targetAmount, 0);
     const goalProgress = totalTarget > 0 ? (totalSavingsValue / totalTarget) * 100 : 0;
 
@@ -86,6 +84,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 10);
   }, [transactions, searchQuery, categories]);
+
+  const activeSubscriptions = subscriptions.filter(s => s.isActive);
+  const nextSubscription = useMemo(() => {
+    if (activeSubscriptions.length === 0) return null;
+    return [...activeSubscriptions].sort((a, b) => new Date(a.nextPaymentDate).getTime() - new Date(b.nextPaymentDate).getTime())[0];
+  }, [activeSubscriptions]);
 
   const getTimeGreeting = () => {
     const hour = new Date().getHours();
@@ -127,9 +131,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
           </div>
         </div>
 
-        {/* Hero Cards Grid */}
         <div className="grid grid-cols-5 gap-3 h-36">
-          {/* Capital Card */}
           <div className="col-span-3 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 rounded-[2.5rem] p-6 text-white relative overflow-hidden shadow-2xl border border-white/5 group">
             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full -mr-16 -mt-16 blur-3xl transition-transform group-hover:scale-150 duration-700"></div>
             <div className="absolute bottom-0 left-0 w-20 h-20 bg-slate-500/5 rounded-full -ml-10 -mb-10 blur-2xl"></div>
@@ -151,7 +153,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
             </div>
           </div>
 
-          {/* Goals Card */}
           <Link to="/savings" className="col-span-2 bg-gradient-to-br from-rose-500 to-rose-700 rounded-[2.5rem] p-6 text-white relative overflow-hidden shadow-2xl border border-white/5 group active:scale-[0.97] transition-all">
             <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-12 -mt-12 blur-2xl"></div>
             <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-black/10 rounded-full blur-xl"></div>
@@ -187,7 +188,32 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
         </div>
       </header>
 
-      {/* Modern Tinted Stats Cards */}
+      {/* Compact Subscriptions Section */}
+      <section className="px-1">
+        <Link 
+          to="/subscriptions" 
+          className="bg-white p-3.5 rounded-[1.75rem] border border-slate-100 shadow-sm flex items-center justify-between group active:scale-[0.98] transition-all"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shadow-inner">
+               <RefreshCw size={20} className="group-hover:rotate-180 transition-transform duration-700" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.15em]">Подписки</p>
+              <h4 className="text-[13px] font-black text-slate-900 uppercase tracking-tight leading-tight">
+                {nextSubscription ? `След.: ${nextSubscription.name}` : 'Нет активных'}
+              </h4>
+              {nextSubscription && (
+                <p className="text-[9px] text-indigo-500 font-bold uppercase mt-0.5">
+                  {new Date(nextSubscription.nextPaymentDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} • {nextSubscription.amount} {profile.currency}
+                </p>
+              )}
+            </div>
+          </div>
+          <ChevronRight size={18} className="text-slate-300 group-hover:translate-x-1 transition-transform" />
+        </Link>
+      </section>
+
       <section className="px-1 grid grid-cols-2 gap-3">
         <div className="relative overflow-hidden bg-emerald-50/70 p-4 rounded-3xl border border-emerald-100 shadow-sm flex flex-col gap-2 group active:scale-95 transition-all">
           <TrendingUp size={64} className="absolute -right-4 -bottom-4 text-emerald-500/10 transform -rotate-12 pointer-events-none" />
@@ -214,7 +240,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
         </div>
       </section>
 
-      {/* Account Carousel */}
       <section className="space-y-3">
         <div className="flex justify-between items-center px-2">
           <h3 className="font-bold text-slate-800 text-[12px] uppercase tracking-widest flex items-center gap-1.5">
@@ -252,7 +277,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
         </div>
       </section>
 
-      {/* History */}
       <section className="space-y-4 px-1">
         <div className="flex justify-between items-center px-1">
           <h3 className="font-bold text-slate-800 text-[12px] uppercase tracking-widest flex items-center gap-1.5">
@@ -277,9 +301,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
                 const cat = categories.find(c => c.id === t.categoryId);
                 const acc = accounts.find(a => a.id === t.accountId);
                 const linkedDebt = debts.find(d => d.id === t.linkedDebtId);
+                const isSubscription = t.note.startsWith('[ПОДПИСКА]');
                 
                 const displayName = linkedDebt ? linkedDebt.personName : (cat?.name || 'Операция');
-                const displayIcon = linkedDebt ? (linkedDebt.isBank ? '🏦' : '🤝') : (cat?.icon || '📦');
+                const displayIcon = linkedDebt 
+                  ? (linkedDebt.isBank ? '🏦' : '🤝') 
+                  : (isSubscription ? (t.note.split(' ')[1] || cat?.icon || '📦') : (cat?.icon || '📦'));
+                
+                // Clean display note
+                const displayNote = t.note.replace(/^\[(ПОДПИСКА|ДОЛГ)\]\s*/, '');
 
                 return (
                   <div 
@@ -287,15 +317,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
                     onClick={() => onEditTransaction(t)}
                     className="bg-white p-4 rounded-3xl flex items-center justify-between border border-slate-100 shadow-sm active:bg-slate-50 transition-all group"
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 min-w-0">
                       <div 
                         className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shadow-inner group-hover:rotate-6 transition-transform"
                         style={{ backgroundColor: `${cat?.color || '#6366f1'}15`, color: cat?.color || '#6366f1' }}
                       >
-                        {displayIcon}
+                        {isSubscription ? <RefreshCw size={18} className="text-indigo-500" /> : displayIcon}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-bold text-slate-900 text-[14px] leading-tight truncate uppercase tracking-tight">{displayName}</p>
+                        <p className="font-bold text-slate-900 text-[14px] leading-tight truncate uppercase tracking-tight">
+                          {isSubscription ? displayNote : displayName}
+                        </p>
                         <p className="text-[11px] text-slate-500 font-medium mt-0.5">
                           {acc?.name} • {new Date(t.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                         </p>

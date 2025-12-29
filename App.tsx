@@ -12,8 +12,9 @@ import { AccountsPage } from './pages/AccountsPage';
 import { JointBudget } from './pages/JointBudget';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { FullHistoryPage } from './pages/FullHistoryPage';
+import { SubscriptionsPage } from './pages/SubscriptionsPage';
 import { TransactionModal } from './components/TransactionModal';
-import { AppState, Transaction, Debt } from './types';
+import { AppState, Transaction, Debt, Subscription } from './types';
 import { DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS } from './constants';
 import { Loader2, CloudOff } from 'lucide-react';
 
@@ -23,6 +24,7 @@ const MOCK_STATE: AppState = {
   accounts: DEFAULT_ACCOUNTS,
   debts: [],
   savings: [],
+  subscriptions: [],
   profile: { name: 'Гость', currency: '₽' }
 };
 
@@ -105,6 +107,7 @@ const AppContent: React.FC = () => {
             ...data.state,
             categories: data.state.categories?.length ? data.state.categories : DEFAULT_CATEGORIES,
             accounts: data.state.accounts?.length ? data.state.accounts : DEFAULT_ACCOUNTS,
+            subscriptions: data.state.subscriptions || [],
             profile: {
               ...prev.profile,
               ...data.state.profile,
@@ -194,14 +197,12 @@ const AppContent: React.FC = () => {
     let finalTx: Transaction;
     let updatedDebts = [...state.debts];
 
-    // 1. Если мы РЕДАКТИРУЕМ, сначала "откатываем" влияние старой транзакции на долги
     if (editingTransaction) {
       finalTx = { ...newTx, id: editingTransaction.id };
       
       if (editingTransaction.linkedDebtId) {
         updatedDebts = updatedDebts.map(d => {
           if (d.id === editingTransaction.linkedDebtId) {
-            // Обратное действие: если было 'increase', вычитаем. Если 'decrease', прибавляем.
             const reversalAmount = editingTransaction.debtAction === 'increase' 
               ? -editingTransaction.amount 
               : editingTransaction.amount;
@@ -214,13 +215,11 @@ const AppContent: React.FC = () => {
       finalTx = { ...newTx, id: `tx_${Date.now()}` };
     }
 
-    // 2. Применяем влияние НОВОЙ (или измененной) транзакции на долги
     if (finalTx.linkedDebtId || newDebtName) {
       const amount = finalTx.amount;
       const action = finalTx.debtAction;
 
       if (finalTx.linkedDebtId) {
-        // Ищем в уже потенциально "откатанном" списке updatedDebts
         updatedDebts = updatedDebts.map(d => {
           if (d.id === finalTx.linkedDebtId) {
             const newAmount = action === 'increase' ? d.amount + amount : Math.max(0, d.amount - amount);
@@ -229,7 +228,6 @@ const AppContent: React.FC = () => {
           return d;
         });
       } else if (newDebtName && action === 'increase') {
-        // Создание нового долга
         const debtType = finalTx.type === 'expense' ? 'they_owe' : 'i_owe';
         const newDebt: Debt = {
           id: `debt_${Date.now()}`,
@@ -260,12 +258,9 @@ const AppContent: React.FC = () => {
 
     let updatedDebts = [...state.debts];
 
-    // Если удаляемая транзакция была связана с долгом, нужно вернуть сумму долга в исходное состояние
     if (txToDelete.linkedDebtId) {
       updatedDebts = updatedDebts.map(d => {
         if (d.id === txToDelete.linkedDebtId) {
-          // Если транзакция увеличивала долг, при удалении мы его уменьшаем
-          // Если уменьшала (возврат), при удалении возвращаем сумму в долг
           const reversalAmount = txToDelete.debtAction === 'increase' 
             ? -txToDelete.amount 
             : txToDelete.amount;
@@ -303,6 +298,7 @@ const AppContent: React.FC = () => {
           <Route path="/categories" element={<Categories state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/debts" element={<Debts state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/savings" element={<Savings state={state} onUpdateState={handleUpdateState} />} />
+          <Route path="/subscriptions" element={<SubscriptionsPage state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/profile" element={<Profile state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/analytics" element={<AnalyticsPage state={state} />} />
           <Route path="/history" element={<FullHistoryPage state={state} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsModalOpen(true); }} />} />

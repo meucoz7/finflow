@@ -54,6 +54,20 @@ export interface SavingsGoal {
   color: string;
 }
 
+export interface Subscription {
+  id: string;
+  name: string;
+  amount: number;
+  period: 'monthly' | 'yearly' | 'weekly';
+  nextPaymentDate: string;
+  categoryId: string;
+  accountId: string;
+  isActive: boolean;
+  reminderDays: number; // 1 or 2 as requested
+  icon: string;
+  color: string;
+}
+
 export interface UserProfile {
   name: string;
   currency: string;
@@ -69,5 +83,6 @@ export interface AppState {
   accounts: Account[];
   debts: Debt[];
   savings: SavingsGoal[];
+  subscriptions: Subscription[];
   profile: UserProfile;
 }
