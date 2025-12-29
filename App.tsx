@@ -14,7 +14,7 @@ import { AnalyticsPage } from './pages/AnalyticsPage';
 import { FullHistoryPage } from './pages/FullHistoryPage';
 import { SubscriptionsPage } from './pages/SubscriptionsPage';
 import { TransactionModal } from './components/TransactionModal';
-import { AppState, Transaction, Debt, Subscription } from './types';
+import { AppState, Transaction, Debt } from './types';
 import { DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS } from './constants';
 import { Loader2, CloudOff } from 'lucide-react';
 
@@ -25,7 +25,14 @@ const MOCK_STATE: AppState = {
   debts: [],
   savings: [],
   subscriptions: [],
-  profile: { name: 'Гость', currency: '₽' }
+  profile: { 
+    name: 'Гость', 
+    currency: '₽',
+    dashboardLayout: {
+      order: ['hero', 'subs', 'summary', 'accounts', 'history'],
+      hidden: []
+    }
+  }
 };
 
 const TelegramNavigation: React.FC = () => {
@@ -111,7 +118,8 @@ const AppContent: React.FC = () => {
             profile: {
               ...prev.profile,
               ...data.state.profile,
-              name: data.state.profile?.name || tg?.initDataUnsafe?.user?.first_name || 'Пользователь'
+              name: data.state.profile?.name || tg?.initDataUnsafe?.user?.first_name || 'Пользователь',
+              dashboardLayout: data.state.profile?.dashboardLayout || MOCK_STATE.profile.dashboardLayout
             }
           }));
         }
@@ -291,7 +299,7 @@ const AppContent: React.FC = () => {
         </div>
 
         <Routes>
-          <Route path="/" element={<Dashboard state={state} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsModalOpen(true); }} onDeleteTransaction={handleDeleteTransaction} />} />
+          <Route path="/" element={<Dashboard state={state} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsModalOpen(true); }} onDeleteTransaction={handleDeleteTransaction} onUpdateState={handleUpdateState} />} />
           <Route path="/accounts" element={<AccountsPage state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/joint" element={<JointBudget state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/calendar" element={<CalendarPage state={state} onUpdateState={handleUpdateState} />} />

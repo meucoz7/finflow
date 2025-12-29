@@ -68,6 +68,8 @@ export interface Subscription {
   color: string;
 }
 
+export type DashboardWidget = 'hero' | 'subs' | 'summary' | 'accounts' | 'history';
+
 export interface UserProfile {
   name: string;
   currency: string;
@@ -75,6 +77,10 @@ export interface UserProfile {
   partnerId?: number | null;
   pendingPartnerId?: number | null;
   includeDebtsInCapital?: boolean;
+  dashboardLayout?: {
+    order: DashboardWidget[];
+    hidden: DashboardWidget[];
+  };
 }
 
 export interface AppState {
