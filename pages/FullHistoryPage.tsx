@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppState, Transaction } from '../types';
@@ -167,10 +166,7 @@ export const FullHistoryPage: React.FC<FullHistoryPageProps> = ({ state, onEditT
   };
 
   const handleTxClick = (t: Transaction) => {
-    if (t.note.startsWith('[ПОДПИСКА]')) {
-      tg?.HapticFeedback?.notificationOccurred('warning');
-      return;
-    }
+    // We now allow clicking even on subscription transactions so the user can "undo" them
     onEditTransaction(t);
   };
 
@@ -337,7 +333,7 @@ export const FullHistoryPage: React.FC<FullHistoryPageProps> = ({ state, onEditT
                     <div 
                       key={t.id} 
                       onClick={() => handleTxClick(t)}
-                      className={`bg-white p-4 rounded-[1.75rem] flex items-center justify-between border border-transparent shadow-sm transition-all group active:scale-[0.98] active:bg-slate-50 ${isSubscription ? 'cursor-default' : 'cursor-pointer hover:border-slate-100'}`}
+                      className={`bg-white p-4 rounded-[1.75rem] flex items-center justify-between border border-transparent shadow-sm transition-all group active:scale-[0.98] active:bg-slate-50 cursor-pointer hover:border-slate-100`}
                     >
                       <div className="flex items-center gap-4 min-w-0">
                         <div 

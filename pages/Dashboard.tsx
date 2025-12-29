@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AppState, Transaction, SavingsGoal, DashboardWidget } from '../types';
@@ -114,10 +113,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
   };
 
   const handleTxClick = (t: Transaction) => {
-    if (t.note.startsWith('[ПОДПИСКА]')) {
-      tg?.HapticFeedback?.notificationOccurred('warning');
-      return; 
-    }
+    // We now allow clicking even on subscription transactions so the user can "undo" them
     onEditTransaction(t);
   };
 
@@ -296,7 +292,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
                         <div 
                           key={t.id} 
                           onClick={() => handleTxClick(t)}
-                          className={`bg-white p-4 rounded-3xl flex items-center justify-between border border-slate-100 shadow-sm transition-all group ${isSubscription ? 'cursor-default' : 'active:bg-slate-50 active:scale-[0.99] cursor-pointer'}`}
+                          className={`bg-white p-4 rounded-3xl flex items-center justify-between border border-slate-100 shadow-sm transition-all group active:bg-slate-50 active:scale-[0.99] cursor-pointer`}
                         >
                           <div className="flex items-center gap-4 min-w-0">
                             <div 
