@@ -60,6 +60,7 @@ export interface UserProfile {
   avatar?: string;
   partnerId?: number | null;
   pendingPartnerId?: number | null;
+  includeDebtsInCapital?: boolean;
 }
 
 export interface AppState {

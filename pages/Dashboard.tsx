@@ -47,12 +47,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
 
     const currentBalance = accounts.reduce((s: number, a) => s + a.balance, 0) + (allTimeIncome - allTimeExpense - allTimeSavings);
     
+    // Logic for debts
     const theyOweMe = debts.filter(d => d.type === 'they_owe').reduce((s: number, d) => s + d.amount, 0);
     const iOwe = debts.filter(d => d.type === 'i_owe' && !d.isBank).reduce((s: number, d) => s + d.amount, 0);
     const netDebt = theyOweMe - iOwe;
     
     const totalSavingsValue = savings.reduce((s: number, g: SavingsGoal) => s + g.currentAmount, 0) + allTimeSavings;
-    const netWorth = currentBalance + totalSavingsValue + netDebt;
+    
+    // Net worth calculation based on setting
+    const netWorth = profile.includeDebtsInCapital 
+      ? currentBalance + totalSavingsValue + netDebt
+      : currentBalance + totalSavingsValue;
+
+    // Calculate goals progress percentage
+    const totalTarget = savings.reduce((s, g) => s + g.targetAmount, 0);
+    const goalProgress = totalTarget > 0 ? (totalSavingsValue / totalTarget) * 100 : 0;
 
     return { 
       currentBalance, 
@@ -60,9 +69,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
       totalSavingsValue, 
       netWorth, 
       totalExpense, 
-      totalIncome
+      totalIncome,
+      goalProgress
     };
-  }, [transactions, debts, savings, accounts]);
+  }, [transactions, debts, savings, accounts, profile.includeDebtsInCapital]);
 
   const filteredTransactions = useMemo(() => {
     return [...transactions]
@@ -86,7 +96,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
 
   return (
     <div className="space-y-6 animate-slide-up pb-10 pt-[env(safe-area-inset-top,8px)]">
-      <header className="space-y-4 pt-2 px-1">
+      <header className="space-y-5 pt-2 px-1">
         <div className="flex justify-between items-center">
           <Link to="/profile" className="flex items-center gap-3 group">
              <div className="w-11 h-11 rounded-2xl bg-slate-900 border-2 border-white shadow-md flex items-center justify-center text-white text-base font-semibold shrink-0 group-active:scale-90 transition-all overflow-hidden aspect-square">
@@ -117,38 +127,59 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
         </div>
 
         {/* Hero Cards Grid */}
-        <div className="grid grid-cols-5 gap-3">
-          <div className="col-span-3 bg-slate-900 rounded-[2rem] p-5 text-white relative overflow-hidden shadow-xl group">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full -mr-12 -mt-12 blur-2xl"></div>
-            <div className="relative z-10 space-y-2">
-              <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest">Капитал</p>
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-bold tracking-tight">
-                  {stats.netWorth.toLocaleString()}
-                </span>
-                <span className="text-sm font-medium text-indigo-400/80">{profile.currency}</span>
+        <div className="grid grid-cols-5 gap-3 h-36">
+          {/* Capital Card */}
+          <div className="col-span-3 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 rounded-[2.5rem] p-6 text-white relative overflow-hidden shadow-2xl border border-white/5 group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full -mr-16 -mt-16 blur-3xl transition-transform group-hover:scale-150 duration-700"></div>
+            <div className="absolute bottom-0 left-0 w-20 h-20 bg-slate-500/5 rounded-full -ml-10 -mb-10 blur-2xl"></div>
+            
+            <div className="relative z-10 h-full flex flex-col justify-between">
+              <div className="space-y-1">
+                <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Капитал</p>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-black tracking-tighter leading-none">
+                    {stats.netWorth.toLocaleString()}
+                  </span>
+                  <span className="text-xs font-bold text-indigo-400/60 uppercase">{profile.currency}</span>
+                </div>
               </div>
-              <Link to="/accounts" className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-indigo-300 hover:text-white transition-colors">
-                Счета <ArrowUpRight size={10} />
+              
+              <Link to="/accounts" className="self-start px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full backdrop-blur-md flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-200 transition-all active:scale-95">
+                Счета <ArrowUpRight size={12} className="opacity-50" />
               </Link>
             </div>
           </div>
 
-          <Link to="/savings" className="col-span-2 bg-gradient-to-br from-rose-500 to-rose-600 rounded-[2rem] p-5 text-white relative overflow-hidden shadow-xl group active:scale-95 transition-all">
-            <div className="absolute top-0 right-0 w-16 h-16 bg-white/10 rounded-full -mr-8 -mt-8 blur-xl"></div>
-            <div className="relative z-10 space-y-2">
+          {/* Goals Card */}
+          <Link to="/savings" className="col-span-2 bg-gradient-to-br from-rose-500 to-rose-700 rounded-[2.5rem] p-6 text-white relative overflow-hidden shadow-2xl border border-white/5 group active:scale-[0.97] transition-all">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-12 -mt-12 blur-2xl"></div>
+            <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-black/10 rounded-full blur-xl"></div>
+            
+            <div className="relative z-10 h-full flex flex-col justify-between">
               <div className="flex justify-between items-start">
-                <p className="text-rose-100 text-[9px] font-bold uppercase tracking-widest">Цели</p>
-                <Target size={14} className="text-rose-200" />
+                <p className="text-rose-100/60 text-[10px] font-black uppercase tracking-[0.2em]">Цели</p>
+                <Target size={16} className="text-rose-200/50" />
               </div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-xl font-bold tracking-tight">
-                  {stats.totalSavingsValue.toLocaleString()}
-                </span>
-                <span className="text-xs font-medium text-rose-200">{profile.currency}</span>
-              </div>
-              <div className="h-1 w-full bg-white/20 rounded-full overflow-hidden">
-                <div className="h-full bg-white w-2/3"></div>
+              
+              <div className="space-y-3">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl font-black tracking-tighter leading-none">
+                    {stats.totalSavingsValue.toLocaleString()}
+                  </span>
+                  <span className="text-[10px] font-bold text-rose-200 uppercase">{profile.currency}</span>
+                </div>
+                
+                <div className="space-y-1.5">
+                  <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden border border-white/5">
+                    <div 
+                      className="h-full bg-white rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(255,255,255,0.4)]" 
+                      style={{ width: `${Math.min(100, stats.goalProgress)}%` }}
+                    />
+                  </div>
+                  <p className="text-[8px] font-black uppercase tracking-widest text-rose-100/50 text-right">
+                    {Math.round(stats.goalProgress)}%
+                  </p>
+                </div>
               </div>
             </div>
           </Link>
@@ -245,7 +276,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
               const acc = accounts.find(a => a.id === t.accountId);
               const linkedDebt = debts.find(d => d.id === t.linkedDebtId);
               
-              // Если это долг, показываем имя человека вместо названия категории
               const displayName = linkedDebt ? linkedDebt.personName : (cat?.name || 'Операция');
               const displayIcon = linkedDebt ? (linkedDebt.isBank ? '🏦' : '🤝') : (cat?.icon || '📦');
 
