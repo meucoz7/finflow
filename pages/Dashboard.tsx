@@ -113,6 +113,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
     hidden: [] as DashboardWidget[] 
   };
 
+  const handleTxClick = (t: Transaction) => {
+    if (t.note.startsWith('[ПОДПИСКА]')) {
+      tg?.HapticFeedback?.notificationOccurred('warning');
+      return; 
+    }
+    onEditTransaction(t);
+  };
+
   const moveWidget = (direction: 'up' | 'down', widget: DashboardWidget) => {
     const newOrder = [...layout.order];
     const index = newOrder.indexOf(widget);
@@ -282,13 +290,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
                         ? (linkedDebt.isBank ? '🏦' : '🤝') 
                         : (isSubscription ? (t.note.split(' ')[1] || cat?.icon || '📦') : (cat?.icon || '📦'));
                       
-                      // Clean display note
                       const displayNote = t.note.replace(/^\[(ПОДПИСКА|ДОЛГ)\]\s*/, '');
 
                       return (
                         <div 
                           key={t.id} 
-                          onClick={() => !isSubscription && onEditTransaction(t)}
+                          onClick={() => handleTxClick(t)}
                           className={`bg-white p-4 rounded-3xl flex items-center justify-between border border-slate-100 shadow-sm transition-all group ${isSubscription ? 'cursor-default' : 'active:bg-slate-50 active:scale-[0.99] cursor-pointer'}`}
                         >
                           <div className="flex items-center gap-4 min-w-0">
