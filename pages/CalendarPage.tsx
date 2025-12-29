@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { AppState, Transaction } from '../types';
 import { 
@@ -146,7 +145,8 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ state, onUpdateState
           accountId: sub.accountId,
           date: new Date().toISOString(),
           note: `[ПОДПИСКА] ${sub.name}`,
-          type: 'expense'
+          type: 'expense',
+          subscriptionId: sub.id // Link for undoing
         };
         
         // Update next payment date

@@ -1,4 +1,3 @@
-
 export type TransactionType = 'income' | 'expense' | 'savings';
 
 export interface Account {
@@ -30,6 +29,7 @@ export interface Transaction {
   isJoint?: boolean;
   linkedDebtId?: string;
   debtAction?: 'increase' | 'decrease';
+  subscriptionId?: string;
 }
 
 export interface Debt {

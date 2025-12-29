@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { HashRouter, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
@@ -265,6 +264,21 @@ const AppContent: React.FC = () => {
     if (!txToDelete) return;
 
     let updatedDebts = [...state.debts];
+    let updatedSubscriptions = [...state.subscriptions];
+
+    // Check if it's a subscription transaction to undo
+    if (txToDelete.subscriptionId || txToDelete.note.startsWith('[ПОДПИСКА]')) {
+      const sub = state.subscriptions.find(s => s.id === txToDelete.subscriptionId || s.name === txToDelete.note.replace('[ПОДПИСКА] ', ''));
+      if (sub) {
+        // Roll back nextPaymentDate
+        const prevDate = new Date(sub.nextPaymentDate);
+        if (sub.period === 'monthly') prevDate.setMonth(prevDate.getMonth() - 1);
+        else if (sub.period === 'yearly') prevDate.setFullYear(prevDate.getFullYear() - 1);
+        else if (sub.period === 'weekly') prevDate.setDate(prevDate.getDate() - 7);
+        
+        updatedSubscriptions = state.subscriptions.map(s => s.id === sub.id ? { ...s, nextPaymentDate: prevDate.toISOString().split('T')[0] } : s);
+      }
+    }
 
     if (txToDelete.linkedDebtId) {
       updatedDebts = updatedDebts.map(d => {
@@ -280,7 +294,8 @@ const AppContent: React.FC = () => {
 
     handleUpdateState({ 
       transactions: state.transactions.filter(t => t.id !== id),
-      debts: updatedDebts
+      debts: updatedDebts,
+      subscriptions: updatedSubscriptions
     });
   };
 

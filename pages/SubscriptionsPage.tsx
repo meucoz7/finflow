@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppState, Subscription } from '../types';
@@ -18,7 +17,8 @@ import {
   ChevronDown,
   ChevronUp,
   Search,
-  Sparkles
+  Sparkles,
+  Wallet
 } from 'lucide-react';
 
 interface SubscriptionsPageProps {
@@ -90,8 +90,9 @@ export const SubscriptionsPage: React.FC<SubscriptionsPageProps> = ({ state, onU
   };
 
   const deleteSub = (id: string) => {
-    if (confirm('Удалить эту подписку?')) {
+    if (confirm('Удалить эту подписку? Она больше не будет появляться в календаре.')) {
       onUpdateState({ subscriptions: subscriptions.filter(s => s.id !== id) });
+      resetForm();
     }
   };
 
@@ -143,7 +144,6 @@ export const SubscriptionsPage: React.FC<SubscriptionsPageProps> = ({ state, onU
 
       {isAdding && (
         <div className="px-1 animate-slide-up space-y-4">
-          {/* Quick Presets Slider */}
           {!editingId && (
             <div className="space-y-2">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3 flex items-center gap-1.5">
@@ -166,7 +166,6 @@ export const SubscriptionsPage: React.FC<SubscriptionsPageProps> = ({ state, onU
 
           <div className="bg-white p-6 rounded-[2.5rem] shadow-2xl border border-slate-100 space-y-5">
             <div className="flex gap-3">
-              {/* Enhanced Icon Picker */}
               <div className="relative" ref={iconPickerRef}>
                 <button 
                   type="button"
@@ -226,6 +225,30 @@ export const SubscriptionsPage: React.FC<SubscriptionsPageProps> = ({ state, onU
                </div>
             </div>
 
+            {/* Account Selection Section */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                <Wallet size={12} className="text-indigo-500" /> Списать со счета
+              </label>
+              <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
+                {accounts.map(acc => (
+                  <button
+                    key={acc.id}
+                    type="button"
+                    onClick={() => setForm({...form, accountId: acc.id})}
+                    className={`flex-shrink-0 px-4 py-3 rounded-2xl border transition-all flex items-center gap-2 ${
+                      form.accountId === acc.id 
+                      ? 'bg-indigo-50 border-indigo-600 text-indigo-700 shadow-sm' 
+                      : 'bg-slate-50 border-slate-100 text-slate-500'
+                    }`}
+                  >
+                    <span className="text-lg">{acc.icon}</span>
+                    <span className="text-[11px] font-black uppercase tracking-tight">{acc.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
                <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">След. платеж</label>
@@ -244,13 +267,24 @@ export const SubscriptionsPage: React.FC<SubscriptionsPageProps> = ({ state, onU
             <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 flex items-start gap-3">
                <BellRing size={16} className="text-indigo-500 mt-0.5" />
                <p className="text-[10px] text-indigo-700 font-bold leading-relaxed">
-                 Telegram-бот пришлет вам напоминание за {form.reminderDays} {form.reminderDays === 1 ? 'день' : 'дня'} до списания.
+                 Бот пришлет напоминание за {form.reminderDays} {form.reminderDays === 1 ? 'день' : 'дня'} до списания.
                </p>
             </div>
 
-            <div className="flex gap-3 pt-2">
-               <button onClick={resetForm} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase text-[11px] tracking-widest active:scale-95 transition-all">Отмена</button>
-               <button onClick={saveSub} className="flex-[2] py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all">
+            <div className={`grid ${editingId ? 'grid-cols-3' : 'grid-cols-3'} gap-3 pt-2`}>
+               <button onClick={resetForm} className="py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all">Отмена</button>
+               {editingId && (
+                 <button 
+                  onClick={() => deleteSub(editingId)} 
+                  className="py-4 bg-rose-50 text-rose-500 border border-rose-100 rounded-2xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all flex items-center justify-center"
+                 >
+                   <Trash2 size={16} />
+                 </button>
+               )}
+               <button 
+                onClick={saveSub} 
+                className={`py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl active:scale-95 transition-all ${editingId ? 'col-span-1' : 'col-span-2'}`}
+               >
                   {editingId ? 'Обновить' : 'Сохранить'}
                </button>
             </div>
@@ -267,6 +301,8 @@ export const SubscriptionsPage: React.FC<SubscriptionsPageProps> = ({ state, onU
         ) : (
           subscriptions.map(sub => {
             const daysLeft = Math.ceil((new Date(sub.nextPaymentDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+            const acc = accounts.find(a => a.id === sub.accountId);
+            
             return (
               <div 
                 key={sub.id} 
@@ -280,8 +316,8 @@ export const SubscriptionsPage: React.FC<SubscriptionsPageProps> = ({ state, onU
                   <div className="min-w-0">
                     <h4 className="font-bold text-slate-900 text-[14px] uppercase tracking-tight truncate">{sub.name}</h4>
                     <div className="flex items-center gap-2 mt-0.5">
-                       <p className="text-[9px] text-slate-400 font-black uppercase">
-                         {new Date(sub.nextPaymentDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                       <p className="text-[9px] text-slate-400 font-black uppercase flex items-center gap-1">
+                         {acc?.icon} {acc?.name}
                        </p>
                        <div className="w-1 h-1 bg-slate-200 rounded-full" />
                        <p className={`text-[9px] font-black uppercase ${daysLeft <= 3 ? 'text-rose-500' : 'text-indigo-500'}`}>
