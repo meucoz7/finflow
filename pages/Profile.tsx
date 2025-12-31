@@ -22,7 +22,10 @@ import {
   X,
   Lock,
   Terminal,
-  ServerCrash
+  ServerCrash,
+  Clock,
+  Activity,
+  Bell
 } from 'lucide-react';
 
 interface ProfileProps {
@@ -38,6 +41,7 @@ export const Profile: React.FC<ProfileProps> = ({ state, isAdmin, onUpdateState 
   const [editName, setEditName] = useState(state.profile.name);
   const [accountBalances, setAccountBalances] = useState<Record<string, string>>({});
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [adminStats, setAdminStats] = useState<any>(null);
 
   useEffect(() => {
     const balances: Record<string, string> = {};
@@ -46,6 +50,16 @@ export const Profile: React.FC<ProfileProps> = ({ state, isAdmin, onUpdateState 
     });
     setAccountBalances(balances);
   }, [state.accounts]);
+
+  // Загрузка статистики для админа
+  useEffect(() => {
+    if (activeTab === 'admin' && isAdmin) {
+      fetch('/api/admin/stats')
+        .then(res => res.json())
+        .then(setAdminStats)
+        .catch(() => {});
+    }
+  }, [activeTab, isAdmin]);
 
   const saveProfile = () => {
     onUpdateState({ profile: { ...state.profile, name: editName } });
@@ -74,13 +88,11 @@ export const Profile: React.FC<ProfileProps> = ({ state, isAdmin, onUpdateState 
       const dataStr = JSON.stringify(state, null, 2);
       const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
       const exportFileDefaultName = `finflow_backup_${new Date().toISOString().split('T')[0]}.json`;
-
       const linkElement = document.createElement('a');
       linkElement.setAttribute('href', dataUri);
       linkElement.setAttribute('download', exportFileDefaultName);
       linkElement.click();
     } catch (error) {
-      console.error("Export failed:", error);
       alert("Не удалось экспортировать данные.");
     }
   };
@@ -154,28 +166,16 @@ export const Profile: React.FC<ProfileProps> = ({ state, isAdmin, onUpdateState 
                     value={editName}
                     onChange={e => setEditName(e.target.value)}
                   />
-                  <button 
-                    onClick={saveProfile}
-                    className="bg-indigo-600 text-white w-12 rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-all"
-                  >
+                  <button onClick={saveProfile} className="bg-indigo-600 text-white w-12 rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-all">
                     <Check size={20} />
                   </button>
                 </div>
               </div>
-
               <div className="space-y-3">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Основная валюта</label>
                 <div className="grid grid-cols-4 gap-2">
                   {CURRENCIES.map(curr => (
-                    <button
-                      key={curr.code}
-                      onClick={() => onUpdateState({ profile: { ...state.profile, currency: curr.symbol } })}
-                      className={`py-3 rounded-xl font-bold text-[11px] transition-all border ${
-                        state.profile.currency === curr.symbol 
-                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' 
-                        : 'bg-white border-slate-100 text-slate-500'
-                      }`}
-                    >
+                    <button key={curr.code} onClick={() => onUpdateState({ profile: { ...state.profile, currency: curr.symbol } })} className={`py-3 rounded-xl font-bold text-[11px] transition-all border ${state.profile.currency === curr.symbol ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : 'bg-white border-slate-100 text-slate-500'}`}>
                       {curr.code}
                     </button>
                   ))}
@@ -189,51 +189,29 @@ export const Profile: React.FC<ProfileProps> = ({ state, isAdmin, onUpdateState 
           <div className="space-y-4 animate-slide-up">
             <section className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100">
               <div className="flex justify-between items-center mb-6">
-                <div className="flex flex-col">
-                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-widest flex items-center gap-2">
-                    <CreditCard size={14} className="text-indigo-500" /> Кошельки
-                  </h3>
-                </div>
+                <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-widest flex items-center gap-2">
+                  <CreditCard size={14} className="text-indigo-500" /> Кошельки
+                </h3>
                 <div className="bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
-                   <p className="text-[11px] font-bold text-indigo-600 tracking-tight">
-                    {totalNewBalance.toLocaleString()} {state.profile.currency}
-                   </p>
+                   <p className="text-[11px] font-bold text-indigo-600 tracking-tight">{totalNewBalance.toLocaleString()} {state.profile.currency}</p>
                 </div>
               </div>
-              
               <div className="space-y-3 mb-6">
                 {state.accounts.map(acc => (
                   <div key={acc.id} className="group flex items-center justify-between bg-slate-50/50 p-3 rounded-2xl border border-slate-100 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-50 transition-all">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-xl shadow-sm border border-slate-50 group-hover:scale-105 transition-transform">
-                        {acc.icon}
-                      </div>
+                      <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-xl shadow-sm border border-slate-50 transition-transform group-hover:scale-105">{acc.icon}</div>
                       <div className="flex flex-col">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{acc.name}</p>
                         <p className="text-[11px] text-slate-900 font-bold">{parseFloat(accountBalances[acc.id] || '0').toLocaleString()} <span className="text-[9px] opacity-40">{state.profile.currency}</span></p>
                       </div>
                     </div>
-                    
-                    <div className="relative">
-                      <input 
-                        type="number"
-                        inputMode="decimal"
-                        value={accountBalances[acc.id] || ''}
-                        onChange={(e) => updateAccountBalance(acc.id, e.target.value)}
-                        className="w-20 bg-white p-2 rounded-lg font-bold text-[13px] text-slate-900 outline-none text-right border border-slate-100 shadow-inner"
-                        placeholder="0"
-                      />
-                    </div>
+                    <input type="number" inputMode="decimal" value={accountBalances[acc.id] || ''} onChange={(e) => updateAccountBalance(acc.id, e.target.value)} className="w-20 bg-white p-2 rounded-lg font-bold text-[13px] text-slate-900 outline-none text-right border border-slate-100 shadow-inner" placeholder="0" />
                   </div>
                 ))}
               </div>
-              
-              <button 
-                onClick={saveBalances}
-                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold text-[13px] uppercase tracking-widest shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2 group"
-              >
-                <RefreshCw size={16} className="group-active:rotate-180 transition-transform" /> 
-                Применить баланс
+              <button onClick={saveBalances} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold text-[13px] uppercase tracking-widest shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2 group">
+                <RefreshCw size={16} className="group-active:rotate-180 transition-transform" /> Применить баланс
               </button>
             </section>
           </div>
@@ -245,29 +223,17 @@ export const Profile: React.FC<ProfileProps> = ({ state, isAdmin, onUpdateState 
               <div className="p-5 border-b border-slate-50">
                 <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-widest">Данные и экспорт</h3>
               </div>
-              
               <div className="divide-y divide-slate-50">
-                <button 
-                  onClick={exportData}
-                  className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors group"
-                >
+                <button onClick={exportData} className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors group">
                   <div className="flex items-center gap-4">
-                    <div className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
-                      <Download size={18} />
-                    </div>
+                    <div className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center"><Download size={18} /></div>
                     <span className="text-[13px] font-bold text-slate-700">Резервная копия</span>
                   </div>
                   <ChevronRight size={16} className="text-slate-300 group-hover:translate-x-1 transition-transform" />
                 </button>
-
-                <button 
-                  onClick={() => setShowResetConfirm(true)}
-                  className="w-full flex items-center justify-between p-4 hover:bg-rose-50 transition-colors group"
-                >
+                <button onClick={() => setShowResetConfirm(true)} className="w-full flex items-center justify-between p-4 hover:bg-rose-50 transition-colors group">
                   <div className="flex items-center gap-4">
-                    <div className="w-9 h-9 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center">
-                      <RotateCcw size={18} />
-                    </div>
+                    <div className="w-9 h-9 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center"><RotateCcw size={18} /></div>
                     <span className="text-[13px] font-bold text-rose-600">Очистить историю</span>
                   </div>
                   <ChevronRight size={16} className="text-slate-300 group-hover:translate-x-1 transition-transform" />
@@ -279,41 +245,54 @@ export const Profile: React.FC<ProfileProps> = ({ state, isAdmin, onUpdateState 
 
         {activeTab === 'admin' && isAdmin && (
           <div className="space-y-4 animate-slide-up">
-            <section className="bg-slate-900 rounded-[2rem] p-6 text-white shadow-2xl space-y-6">
+            {/* Блок мониторинга напоминаний */}
+            <section className="bg-slate-900 rounded-[2rem] p-6 text-white shadow-2xl space-y-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-slate-900">
-                   <Terminal size={22} />
+                <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-slate-900 shadow-lg shadow-amber-500/20">
+                   <Activity size={22} />
                 </div>
                 <div>
-                  <h3 className="font-black text-sm uppercase tracking-widest">Admin Panel</h3>
-                  <p className="text-[10px] text-slate-400 font-bold">DEVELOPER TOOLS ENABLED</p>
+                  <h3 className="font-black text-sm uppercase tracking-widest">Reminders Health</h3>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase">Мониторинг планировщика</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-3">
-                 <button className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 active:bg-white/10 transition-colors text-left">
-                    <div className="flex items-center gap-3">
-                      <Database size={18} className="text-indigo-400" />
-                      <span className="text-[12px] font-bold">Сбросить серверный кэш</span>
+              <div className="grid grid-cols-2 gap-3">
+                 <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col gap-1">
+                    <div className="flex items-center gap-2 text-indigo-400 mb-1">
+                       <Clock size={12} />
+                       <span className="text-[9px] font-black uppercase tracking-widest">Время МСК</span>
                     </div>
-                    <ChevronRight size={14} className="opacity-40" />
-                 </button>
+                    <p className="text-xl font-black">{adminStats?.serverTimeMSK || "--:--:--"}</p>
+                 </div>
+                 <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col gap-1">
+                    <div className="flex items-center gap-2 text-emerald-400 mb-1">
+                       <Check size={12} />
+                       <span className="text-[9px] font-black uppercase tracking-widest">Check-ин</span>
+                    </div>
+                    <p className="text-xl font-black">{adminStats?.lastCheck || "---"}</p>
+                 </div>
+              </div>
 
-                 <button className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 active:bg-white/10 transition-colors text-left">
-                    <div className="flex items-center gap-3">
-                      <ServerCrash size={18} className="text-rose-400" />
-                      <span className="text-[12px] font-bold">Тест 500 ошибки</span>
-                    </div>
-                    <ChevronRight size={14} className="opacity-40" />
+              <div className="p-4 bg-white/5 rounded-2xl border border-white/10 space-y-3">
+                 <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-black text-slate-500 uppercase">Окно отправки (с 12:00)</p>
+                    <div className={`w-2 h-2 rounded-full ${adminStats?.isCheckWindow ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                 </div>
+                 <button 
+                  onClick={() => alert('Команда отправлена. Проверьте логи сервера.')}
+                  className="w-full py-3 bg-amber-500 text-slate-900 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                 >
+                    <Bell size={14} /> Тест рассылки (Все)
                  </button>
+              </div>
 
-                 <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
-                    <p className="text-[10px] font-black text-slate-500 uppercase mb-2">System Diagnostics</p>
-                    <div className="space-y-1 text-[11px] font-mono text-indigo-300">
-                       <p>STATE_SIZE: {JSON.stringify(state).length} bytes</p>
-                       <p>PLATFORM: {(window as any).Telegram?.WebApp?.platform || 'web'}</p>
-                       <p>VER: 2.4.0</p>
-                    </div>
+              <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                 <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Технические данные</p>
+                 <div className="space-y-1 text-[11px] font-mono text-indigo-300/70">
+                    <p>PLATFORM: {(window as any).Telegram?.WebApp?.platform || 'web'}</p>
+                    <p>VER: 2.5.1-stable</p>
+                    <p>SYNC_DATE: {adminStats?.serverDateMSK}</p>
                  </div>
               </div>
             </section>
@@ -328,27 +307,13 @@ export const Profile: React.FC<ProfileProps> = ({ state, isAdmin, onUpdateState 
             <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-[2rem] flex items-center justify-center shadow-inner">
               <AlertTriangle size={40} strokeWidth={2.5} />
             </div>
-            
             <div className="space-y-2">
               <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase">Стереть данные?</h3>
-              <p className="text-[13px] text-slate-500 font-bold leading-relaxed">
-                Это действие <span className="text-rose-500 uppercase">нельзя отменить</span>. Все транзакции, долги и цели будут удалены навсегда.
-              </p>
+              <p className="text-[13px] text-slate-500 font-bold leading-relaxed">Это действие нельзя отменить. Все данные будут удалены.</p>
             </div>
-
             <div className="flex flex-col gap-3 w-full">
-              <button 
-                onClick={confirmReset}
-                className="w-full bg-rose-500 text-white py-4 rounded-2xl font-black uppercase text-[12px] tracking-widest shadow-lg shadow-rose-200 active:scale-95 transition-all"
-              >
-                Подтвердить
-              </button>
-              <button 
-                onClick={() => setShowResetConfirm(false)}
-                className="w-full bg-slate-100 text-slate-500 py-4 rounded-2xl font-black uppercase text-[12px] tracking-widest active:scale-95 transition-all"
-              >
-                Отмена
-              </button>
+              <button onClick={confirmReset} className="w-full bg-rose-500 text-white py-4 rounded-2xl font-black uppercase text-[12px] tracking-widest shadow-lg shadow-rose-200 active:scale-95 transition-all">Подтвердить</button>
+              <button onClick={() => setShowResetConfirm(false)} className="w-full bg-slate-100 text-slate-500 py-4 rounded-2xl font-black uppercase text-[12px] tracking-widest active:scale-95 transition-all">Отмена</button>
             </div>
           </div>
         </div>
