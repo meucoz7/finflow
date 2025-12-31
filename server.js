@@ -31,6 +31,8 @@ const userSchema = new mongoose.Schema({
   firstName: String,
   partnerId: { type: Number, default: null },
   pendingPartnerId: { type: Number, default: null },
+  pairingCode: { type: String, unique: true, sparse: true },
+  pairingCodeExpiresAt: { type: Date },
   lastNotificationDate: { type: String, default: '' },
   state: {
     transactions: { type: Array, default: [] },
@@ -45,6 +47,27 @@ const userSchema = new mongoose.Schema({
 });
 
 const User = mongoose.model('User', userSchema);
+
+// --- Helper Functions ---
+function generatePairingCode() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+async function getOrGenerateCode(user) {
+  const now = new Date();
+  if (user.pairingCode && user.pairingCodeExpiresAt && user.pairingCodeExpiresAt > now) {
+    return user.pairingCode;
+  }
+  
+  // Генерируем новый код, который действует 24 часа
+  const newCode = generatePairingCode();
+  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  
+  user.pairingCode = newCode;
+  user.pairingCodeExpiresAt = expiresAt;
+  await user.save();
+  return newCode;
+}
 
 // --- Telegram Bot ---
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -62,13 +85,10 @@ bot.command('start', async (ctx) => {
       });
     }
     const inlineKeyboard = new InlineKeyboard().webApp('Открыть кошелек 💳', process.env.APP_URL || '');
-    await ctx.reply(`Привет, <b>${first_name}</b>! 💰\n\nЯ буду присылать уведомления ежедневно в 12:00 по МСК.`, { parse_mode: 'HTML', reply_markup: inlineKeyboard });
+    await ctx.reply(`Привет, <b>${first_name}</b>! 💰\n\nЯ помогу тебе вести бюджет вместе с партнером.\nВсе уведомления приходят в 12:00 по МСК.`, { parse_mode: 'HTML', reply_markup: inlineKeyboard });
   } catch (err) { console.error('Bot Command Error:', err); }
 });
 
-/**
- * Вспомогательная функция для получения времени в МСК (UTC+3)
- */
 function getMSKTime() {
   const now = new Date();
   const mskDate = new Date(now.getTime() + (3 * 60 * 60 * 1000));
@@ -84,100 +104,46 @@ let lastGlobalCheckTime = "Никогда";
 
 async function checkReminders(targetId = null) {
   if (!BOT_TOKEN || BOT_TOKEN === 'dummy_token') return;
-
   const msk = getMSKTime();
   const todayStr = msk.isoDate;
-  
-  // Если это не принудительный запуск (targetId), то проверяем время (после 12:00)
   if (!targetId && msk.hours < 12) return;
-
   lastGlobalCheckTime = msk.fullDate.toLocaleTimeString('ru-RU');
-  console.log(`[${lastGlobalCheckTime}] Запуск проверки напоминаний...`);
-
   const query = targetId ? { telegramId: targetId } : { lastNotificationDate: { $ne: todayStr } };
   
   try {
     const users = await User.find(query);
     const comparisonDate = new Date(msk.fullDate);
     comparisonDate.setUTCHours(0, 0, 0, 0);
-
     let totalSent = 0;
-
     for (const user of users) {
       const subs = user.state.subscriptions || [];
       const transactions = user.state.transactions || [];
       const debts = user.state.debts || [];
       const currency = user.state.profile?.currency || '₽';
       let userSentCount = 0;
-
-      // 1. Подписки
       for (const sub of subs) {
         if (!sub.isActive || !sub.nextPaymentDate) continue;
         const payDate = new Date(sub.nextPaymentDate);
         payDate.setHours(0, 0, 0, 0);
         const diffDays = Math.round((payDate.getTime() - comparisonDate.getTime()) / (1000 * 60 * 60 * 24));
         if (diffDays === sub.reminderDays) {
-          try {
-            await bot.api.sendMessage(user.telegramId, `🔔 <b>Напоминание о подписке!</b>\n\n${diffDays === 0 ? 'Сегодня' : 'Через ' + diffDays + ' дн.'} списание: <b>${sub.name}</b>\nСумма: <code>${sub.amount} ${currency}</code>`, { parse_mode: 'HTML' });
-            userSentCount++;
-          } catch (e) {}
+          try { await bot.api.sendMessage(user.telegramId, `🔔 <b>Напоминание о подписке!</b>\n\n${diffDays === 0 ? 'Сегодня' : 'Через ' + diffDays + ' дн.'} списание: <b>${sub.name}</b>\nСумма: <code>${sub.amount} ${currency}</code>`, { parse_mode: 'HTML' }); userSentCount++; } catch (e) {}
         }
       }
-
-      // 2. Планы (на завтра)
-      for (const item of transactions.filter(t => t.isPlanned)) {
-        const itemDate = new Date(item.date);
-        itemDate.setHours(0, 0, 0, 0);
-        const diff = Math.round((itemDate.getTime() - comparisonDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (diff === 1) {
-          try {
-            await bot.api.sendMessage(user.telegramId, `📅 <b>План на завтра:</b>\n\nНе забудьте: <b>${item.note || 'Платеж'}</b>\nСумма: <code>${item.amount} ${currency}</code>`, { parse_mode: 'HTML' });
-            userSentCount++;
-          } catch (e) {}
-        }
-      }
-
-      // 3. Долги
-      for (const debt of debts) {
-        if (!debt.dueDate) continue;
-        const dueDate = new Date(debt.dueDate);
-        dueDate.setHours(0, 0, 0, 0);
-        const diff = Math.round((dueDate.getTime() - comparisonDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (diff === 1) {
-          try {
-            await bot.api.sendMessage(user.telegramId, `🤝 <b>Напоминание по долгу:</b>\n\nЗавтра дата платежа: <b>${debt.personName}</b>\nСумма: <code>${debt.amount} ${currency}</code>`, { parse_mode: 'HTML' });
-            userSentCount++;
-          } catch (e) {}
-        }
-      }
-
-      if (!targetId) {
-        await User.updateOne({ _id: user._id }, { lastNotificationDate: todayStr });
-      }
+      if (!targetId) await User.updateOne({ _id: user._id }, { lastNotificationDate: todayStr });
       totalSent += userSentCount;
     }
     return totalSent;
-  } catch (err) { 
-    console.error('CheckReminders Error:', err); 
-    return 0;
-  }
+  } catch (err) { console.error('CheckReminders Error:', err); return 0; }
 }
 
-// Проверка каждые 15 минут
 setInterval(checkReminders, 15 * 60 * 1000);
 
-// API для админ-панели
 app.get('/api/admin/stats', async (req, res) => {
   const msk = getMSKTime();
-  res.json({
-    serverTimeMSK: msk.fullDate.toLocaleTimeString('ru-RU'),
-    serverDateMSK: msk.isoDate,
-    lastCheck: lastGlobalCheckTime,
-    isCheckWindow: msk.hours >= 12
-  });
+  res.json({ serverTimeMSK: msk.fullDate.toLocaleTimeString('ru-RU'), serverDateMSK: msk.isoDate, lastCheck: lastGlobalCheckTime, isCheckWindow: msk.hours >= 12 });
 });
 
-// Эндпоинт для теста рассылки из админки
 app.post('/api/admin/trigger-reminders', async (req, res) => {
   const { targetId } = req.body;
   const count = await checkReminders(targetId || null);
@@ -191,18 +157,48 @@ if (BOT_TOKEN) {
 app.get('/api/user-state/:id', async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const user = await User.findOne({ telegramId: userId });
+    let user = await User.findOne({ telegramId: userId });
     if (!user) {
-      const newUser = await User.create({ telegramId: userId, state: { profile: { name: 'Пользователь', currency: '₽' } } });
-      return res.json({ state: newUser.state, partnerId: null });
+      user = await User.create({ telegramId: userId, state: { profile: { name: 'Пользователь', currency: '₽' } } });
     }
-    res.json({ state: user.state, partnerId: user.partnerId });
+    const currentCode = await getOrGenerateCode(user);
+    res.json({ state: user.state, partnerId: user.partnerId, pairingCode: currentCode });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/user-state/:id', async (req, res) => {
   try {
     await User.findOneAndUpdate({ telegramId: parseInt(req.params.id) }, { state: req.body, updatedAt: new Date() }, { upsert: true });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Сопряжение через временный код
+app.post('/api/request-pairing', async (req, res) => {
+  const { myId, partnerCode } = req.body;
+  try {
+    const partner = await User.findOne({ pairingCode: partnerCode.toUpperCase() });
+    if (!partner) return res.status(404).json({ error: 'Код не найден или истек' });
+    if (partner.telegramId === myId) return res.status(400).json({ error: 'Нельзя привязать самого себя' });
+
+    // Здесь можно реализовать сложную логику подтверждения, 
+    // но для простоты сразу устанавливаем связь в одну сторону 
+    // или отправляем уведомление. В этой версии - устанавливаем связь.
+    await User.updateOne({ telegramId: myId }, { partnerId: partner.telegramId, pendingPartnerId: null });
+    await User.updateOne({ telegramId: partner.telegramId }, { partnerId: myId, pendingPartnerId: null });
+    
+    res.json({ success: true, partnerName: partner.firstName });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/cancel-pairing', async (req, res) => {
+  const { myId } = req.body;
+  try {
+    const user = await User.findOne({ telegramId: myId });
+    if (user.partnerId) {
+      await User.updateOne({ telegramId: user.partnerId }, { partnerId: null });
+    }
+    await User.updateOne({ telegramId: myId }, { partnerId: null, pendingPartnerId: null });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
