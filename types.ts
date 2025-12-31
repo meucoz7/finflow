@@ -68,7 +68,7 @@ export interface Subscription {
   color: string;
 }
 
-export type DashboardWidget = 'hero' | 'subs' | 'summary' | 'accounts' | 'history';
+export type DashboardWidget = 'hero' | 'quick_actions' | 'subs' | 'summary' | 'accounts' | 'history';
 
 export interface UserProfile {
   name: string;

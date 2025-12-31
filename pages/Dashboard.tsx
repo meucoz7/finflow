@@ -1,7 +1,6 @@
-
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AppState, Transaction, SavingsGoal, DashboardWidget } from '../types';
+import { AppState, Transaction, SavingsGoal, DashboardWidget, Category } from '../types';
 import { 
   Wallet, 
   Handshake, 
@@ -23,7 +22,9 @@ import {
   MoveUp,
   MoveDown,
   Check,
-  ShieldCheck
+  ShieldCheck,
+  Zap,
+  Coffee
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -32,13 +33,15 @@ interface DashboardProps {
   onEditTransaction: (tx: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
   onUpdateState: (newState: Partial<AppState>) => void;
+  onQuickAction: (categoryId: string, amount: number, note: string) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ state, isAdmin, onEditTransaction, onDeleteTransaction, onUpdateState }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ state, isAdmin, onEditTransaction, onDeleteTransaction, onUpdateState, onQuickAction }) => {
   const { transactions, profile, debts, savings, categories, accounts, subscriptions = [] } = state;
   const [searchQuery, setSearchQuery] = useState('');
   const [isEditMode, setIsEditMode] = useState(false);
   const navigate = useNavigate();
+  const tg = (window as any).Telegram?.WebApp;
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -83,6 +86,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, isAdmin, onEditTran
     };
   }, [transactions, debts, savings, accounts, profile.includeDebtsInCapital]);
 
+  const quickActionsData = useMemo(() => {
+    // Анализируем последние 200 операций для поиска паттернов
+    const lastTxs = transactions
+      .filter(t => t.type === 'expense' && !t.isPlanned)
+      .slice(0, 200);
+
+    const patterns: Record<string, { count: number, categoryId: string, amount: number, note: string }> = {};
+
+    lastTxs.forEach(t => {
+      // Ключ паттерна: категория + сумма (примечание игнорируем для группировки, но берем последнее)
+      const key = `${t.categoryId}_${t.amount}`;
+      if (!patterns[key]) {
+        patterns[key] = { count: 0, categoryId: t.categoryId, amount: t.amount, note: t.note };
+      }
+      patterns[key].count++;
+    });
+
+    return Object.values(patterns)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 4); // Берем топ-4 частых действия
+  }, [transactions]);
+
   const filteredTransactions = useMemo(() => {
     return [...transactions]
       .filter(t => !t.isPlanned)
@@ -110,7 +135,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, isAdmin, onEditTran
   };
 
   const layout = profile.dashboardLayout || { 
-    order: ['hero', 'subs', 'summary', 'accounts', 'history'] as DashboardWidget[], 
+    order: ['hero', 'quick_actions', 'subs', 'summary', 'accounts', 'history'] as DashboardWidget[], 
     hidden: [] as DashboardWidget[] 
   };
 
@@ -181,6 +206,52 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, isAdmin, onEditTran
                 </div>
               </Link>
             </div>
+          );
+        case 'quick_actions':
+          if (quickActionsData.length === 0 && !isEditMode) return null;
+          return (
+            <section className="space-y-3">
+              <div className="flex justify-between items-center px-2">
+                <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-widest flex items-center gap-1.5">
+                  <Zap size={15} className="text-amber-500" /> Быстрые записи
+                </h3>
+              </div>
+              <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1 px-1">
+                {quickActionsData.map((action, idx) => {
+                  const cat = categories.find(c => c.id === action.categoryId);
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        tg?.HapticFeedback?.notificationOccurred('success');
+                        onQuickAction(action.categoryId, action.amount, action.note);
+                      }}
+                      className="flex-shrink-0 bg-white border border-slate-100 p-3 rounded-[1.5rem] shadow-sm flex items-center gap-3 active:scale-90 transition-all group"
+                    >
+                      <div 
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-inner group-hover:scale-110 transition-transform"
+                        style={{ backgroundColor: `${cat?.color || '#6366f1'}15`, color: cat?.color || '#6366f1' }}
+                      >
+                        {cat?.icon || '📦'}
+                      </div>
+                      <div className="text-left">
+                        <p className="text-[14px] font-black text-slate-900 tracking-tight leading-tight">
+                          {action.amount.toLocaleString()} <span className="text-[10px] text-slate-400 font-bold">{profile.currency}</span>
+                        </p>
+                        <p className="text-[9px] text-slate-400 font-bold uppercase truncate max-w-[80px] mt-0.5">
+                          {cat?.name || 'Расход'}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+                {quickActionsData.length === 0 && isEditMode && (
+                   <div className="p-4 bg-slate-100/50 rounded-[1.5rem] border border-dashed border-slate-200 text-center w-full">
+                     <p className="text-[10px] font-bold text-slate-400 uppercase">Здесь появятся частые траты</p>
+                   </div>
+                )}
+              </div>
+            </section>
           );
         case 'subs':
           return (

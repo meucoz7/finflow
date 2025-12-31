@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { HashRouter, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
@@ -30,7 +29,7 @@ const MOCK_STATE: AppState = {
     name: 'Гость', 
     currency: '₽',
     dashboardLayout: {
-      order: ['hero', 'subs', 'summary', 'accounts', 'history'],
+      order: ['hero', 'quick_actions', 'subs', 'summary', 'accounts', 'history'],
       hidden: []
     }
   }
@@ -207,6 +206,18 @@ const AppContent: React.FC = () => {
     setState(prev => ({ ...prev, ...newState }));
   };
 
+  const handleQuickAction = (categoryId: string, amount: number, note: string) => {
+    const newTx: Omit<Transaction, 'id'> = {
+      amount,
+      categoryId,
+      accountId: state.accounts[0].id,
+      date: new Date().toISOString(),
+      note: note || 'Быстрая запись',
+      type: 'expense'
+    };
+    handleSaveTransaction(newTx);
+  };
+
   const handleSaveTransaction = (newTx: Omit<Transaction, 'id'>, newDebtName?: string) => {
     let finalTx: Transaction;
     let updatedDebts = [...state.debts];
@@ -342,7 +353,7 @@ const AppContent: React.FC = () => {
         </div>
 
         <Routes>
-          <Route path="/" element={<Dashboard state={state} isAdmin={isAdmin} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsModalOpen(true); }} onDeleteTransaction={handleDeleteTransaction} onUpdateState={handleUpdateState} />} />
+          <Route path="/" element={<Dashboard state={state} isAdmin={isAdmin} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsModalOpen(true); }} onDeleteTransaction={handleDeleteTransaction} onUpdateState={handleUpdateState} onQuickAction={handleQuickAction} />} />
           <Route path="/accounts" element={<AccountsPage state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/joint" element={<JointBudget state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/calendar" element={<CalendarPage state={state} onUpdateState={handleUpdateState} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsModalOpen(true); }} />} />
