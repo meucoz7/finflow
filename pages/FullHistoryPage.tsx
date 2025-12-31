@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppState, Transaction } from '../types';
@@ -14,7 +15,9 @@ import {
   ListFilter,
   TrendingDown,
   TrendingUp,
-  ArrowRightLeft
+  ArrowRightLeft,
+  CalendarDays,
+  Wallet
 } from 'lucide-react';
 
 interface FullHistoryPageProps {
@@ -39,10 +42,15 @@ export const FullHistoryPage: React.FC<FullHistoryPageProps> = ({ state, onEditT
   const [customRange, setCustomRange] = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
   const [viewDate, setViewDate] = useState(new Date());
 
-  // Эффект для автоматической прокрутки наверх при входе на страницу
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, []);
+    if (tg) {
+      tg.setHeaderColor('#ffffff');
+    }
+    return () => {
+      if (tg) tg.setHeaderColor('#f8fafc');
+    };
+  }, [tg]);
 
   const minTransactionDate = useMemo(() => {
     if (transactions.length === 0) return new Date().getTime();
@@ -98,7 +106,6 @@ export const FullHistoryPage: React.FC<FullHistoryPageProps> = ({ state, onEditT
     return result;
   }, [transactions, selectedPeriod, customRange, selectedAccountId, searchQuery, sortOrder, categories, debts]);
 
-  // Statistics for the current view
   const periodStats = useMemo(() => {
     return filteredAndSorted.reduce((acc, t) => {
       if (t.type === 'income') acc.income += t.amount;
@@ -145,7 +152,10 @@ export const FullHistoryPage: React.FC<FullHistoryPageProps> = ({ state, onEditT
   }, [viewDate]);
 
   const handleDateClick = (dateStr: string) => {
-    if (new Date(dateStr).getTime() < new Date(new Date(minTransactionDate).setHours(0,0,0,0)).getTime()) return;
+    const dTime = new Date(dateStr).getTime();
+    const minTime = new Date(new Date(minTransactionDate).setHours(0,0,0,0)).getTime();
+    if (dTime < minTime) return;
+
     if (!customRange.start || (customRange.start && customRange.end)) {
       setCustomRange({ start: dateStr, end: null });
     } else {
@@ -155,6 +165,7 @@ export const FullHistoryPage: React.FC<FullHistoryPageProps> = ({ state, onEditT
         setCustomRange({ ...customRange, end: dateStr });
       }
     }
+    tg?.HapticFeedback?.impactOccurred('light');
   };
 
   const isInRange = (dateStr: string) => {
@@ -162,159 +173,177 @@ export const FullHistoryPage: React.FC<FullHistoryPageProps> = ({ state, onEditT
     const date = new Date(dateStr).getTime();
     const start = new Date(customRange.start).getTime();
     const end = new Date(customRange.end).getTime();
-    return date >= start && date <= end;
+    return date > start && date < end;
   };
 
   const handleTxClick = (t: Transaction) => {
-    // We now allow clicking even on subscription transactions so the user can "undo" them
     onEditTransaction(t);
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-50 animate-slide-up pb-32">
-      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-xl pt-[env(safe-area-inset-top,8px)] px-4 pb-4 border-b border-slate-100 shadow-sm">
-        {/* Navigation & Title */}
-        <div className="flex items-center justify-between h-12 mb-2">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate(-1)} className="w-9 h-9 flex items-center justify-center text-slate-500 bg-slate-100 rounded-2xl active:scale-90 transition-all">
-              <ChevronLeft size={20} />
-            </button>
-            <div>
-              <h1 className="text-[16px] font-black text-slate-900 tracking-tight leading-none">История</h1>
-              <p className="text-[9px] font-black text-indigo-500 uppercase tracking-widest mt-1">
-                {filteredAndSorted.length} транзакций
-              </p>
-            </div>
-          </div>
-          <button 
-            onClick={() => {
-               setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest');
-               tg?.HapticFeedback?.impactOccurred('light');
-            }}
-            className={`w-9 h-9 flex items-center justify-center rounded-2xl transition-all ${sortOrder === 'oldest' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-400'}`}
-          >
-            <ArrowUpDown size={18} />
-          </button>
-        </div>
-
-        {/* Stats Card */}
-        <div className="bg-slate-900 rounded-[2rem] p-4 text-white mb-4 shadow-xl shadow-slate-200/50 relative overflow-hidden">
-           <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16" />
-           <div className="relative z-10 flex items-center justify-between">
-              <div className="space-y-1">
-                 <p className="text-white/40 text-[9px] font-black uppercase tracking-widest">Баланс периода</p>
-                 <h4 className="text-xl font-black tracking-tighter">
-                    {(periodStats.income - periodStats.expense).toLocaleString()} <span className="text-[10px] opacity-40">{profile.currency}</span>
-                 </h4>
+    <div className="flex flex-col min-h-screen bg-slate-50 animate-fade-in pb-32">
+      {/* --- Адаптированная Шапка --- */}
+      <div className="sticky top-0 z-[100] w-full bg-white shadow-[0_4px_25px_-5px_rgba(0,0,0,0.06)]">
+        <div className="pt-[env(safe-area-inset-top,0px)]">
+          <header className="px-4 py-4 flex flex-col gap-5">
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={() => navigate(-1)} 
+                  className="w-12 h-12 flex items-center justify-center text-slate-800 bg-slate-100 rounded-[1.25rem] active:scale-90 transition-all"
+                >
+                  <ChevronLeft size={24} strokeWidth={2.5} />
+                </button>
+                <div className="flex flex-col">
+                  <h1 className="text-[19px] font-black text-slate-900 tracking-tight leading-none uppercase">История</h1>
+                  <p className="text-[11px] font-black text-indigo-500 uppercase tracking-widest mt-1.5 opacity-80">
+                    {filteredAndSorted.length} операций
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center gap-4 border-l border-white/10 pl-4">
-                 <div className="text-right">
-                    <p className="text-emerald-400 text-[11px] font-black tracking-tight leading-none">+{periodStats.income.toLocaleString()}</p>
-                    <p className="text-rose-400 text-[11px] font-black tracking-tight leading-none mt-1.5">-{periodStats.expense.toLocaleString()}</p>
-                 </div>
-                 <div className="w-8 h-8 bg-white/10 rounded-xl flex items-center justify-center">
-                    <ArrowRightLeft size={16} className="text-white/60" />
-                 </div>
-              </div>
-           </div>
-        </div>
 
-        {/* Search */}
-        <div className="relative mb-4">
-          <input 
-            type="text" 
-            placeholder="Поиск по названию или заметке..."
-            className="w-full h-11 bg-slate-100 border-none rounded-2xl pl-10 pr-10 text-[13px] font-bold text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-100 transition-all shadow-inner"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-          />
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300">
-              <X size={16} />
-            </button>
-          )}
-        </div>
-
-        {/* Filters Slider */}
-        <div className="space-y-3">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-            {[
-              { id: 'all', label: 'Все' },
-              { id: 'today', label: 'Сегодня' },
-              { id: 'week', label: '7 дней' },
-              { id: 'month', label: 'Месяц' },
-              { id: 'custom', label: 'Диапазон' }
-            ].map(p => (
-              <button
-                key={p.id}
+              <button 
                 onClick={() => {
+                  setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest');
                   tg?.HapticFeedback?.impactOccurred('light');
-                  if (p.id === 'custom') setIsCustomPickerOpen(true);
-                  setSelectedPeriod(p.id as Period);
                 }}
-                className={`flex-shrink-0 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
-                  selectedPeriod === p.id 
-                  ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' 
-                  : 'bg-white border-slate-100 text-slate-400'
-                }`}
+                className={`w-12 h-12 flex items-center justify-center rounded-[1.25rem] transition-all ${sortOrder === 'oldest' ? 'bg-slate-900 text-white shadow-xl' : 'bg-slate-50 text-slate-400'}`}
               >
-                {p.id === 'custom' && customRange.start ? (
-                    <span className="flex items-center gap-1.5">
-                        <CalendarIcon size={12} />
-                        {new Date(customRange.start).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                    </span>
-                ) : p.label}
+                <ArrowUpDown size={20} strokeWidth={2.5} />
               </button>
-            ))}
-          </div>
+            </div>
 
-          <div className="flex gap-2 overflow-x-auto no-scrollbar">
-            <button
-              onClick={() => { setSelectedAccountId('all'); tg?.HapticFeedback?.impactOccurred('light'); }}
-              className={`flex-shrink-0 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 border ${
-                selectedAccountId === 'all' ? 'bg-slate-900 border-slate-900 text-white shadow-md' : 'bg-white border-slate-100 text-slate-400'
-              }`}
-            >
-              Все счета
-            </button>
-            {accounts.map(acc => (
-              <button
-                key={acc.id}
-                onClick={() => { setSelectedAccountId(acc.id); tg?.HapticFeedback?.impactOccurred('light'); }}
-                className={`flex-shrink-0 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all border ${
-                  selectedAccountId === acc.id ? 'bg-white border-indigo-200 text-indigo-700 shadow-md ring-1 ring-indigo-50' : 'bg-white border-slate-100 text-slate-400'
-                }`}
-              >
-                <span>{acc.icon}</span> {acc.name}
-              </button>
-            ))}
-          </div>
+            <div className="relative overflow-hidden bg-slate-900 rounded-[2rem] px-6 py-5 text-white shadow-2xl shadow-slate-900/10">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/15 rounded-full blur-2xl -mr-16 -mt-16" />
+              
+              <div className="relative z-10 flex items-center justify-between gap-6">
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-white/40 text-[10px] font-black uppercase tracking-[0.25em]">Сальдо периода</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[26px] font-black tracking-tighter leading-none">{(periodStats.income - periodStats.expense).toLocaleString()}</span>
+                    <span className="text-[11px] font-bold opacity-30 uppercase tracking-widest">{profile.currency}</span>
+                  </div>
+                </div>
+
+                <div className="h-12 w-[1px] bg-white/10" />
+
+                <div className="flex flex-col gap-1.5 flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-emerald-400 font-black text-[13px] tracking-tight">+{periodStats.income.toLocaleString()}</span>
+                    <TrendingUp size={12} className="text-emerald-500/40" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-rose-400 font-black text-[13px] tracking-tight">-{periodStats.expense.toLocaleString()}</span>
+                    <TrendingDown size={12} className="text-rose-500/40" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="relative">
+                <input 
+                  type="text" 
+                  placeholder="Найти операцию..."
+                  className="w-full h-14 bg-slate-50 border-2 border-transparent rounded-[1.25rem] pl-12 pr-12 text-[15px] font-bold text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-indigo-100 focus:ring-4 focus:ring-indigo-50/30 transition-all shadow-inner"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-slate-300">
+                  <Search size={20} strokeWidth={2.5} />
+                </div>
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-slate-300 active:text-slate-600 transition-colors">
+                    <X size={18} strokeWidth={3} />
+                  </button>
+                )}
+              </div>
+
+              {/* Улучшенные кнопки фильтров */}
+              <div className="flex flex-col gap-3.5">
+                <div className="flex gap-2.5 overflow-x-auto no-scrollbar py-1 px-0.5">
+                  {[
+                    { id: 'all', label: 'Все', icon: <ListFilter size={16} /> },
+                    { id: 'today', label: 'Сегодня' },
+                    { id: 'week', label: '7 дней' },
+                    { id: 'month', label: 'Месяц' },
+                    { id: 'custom', label: 'Диапазон', icon: <CalendarDays size={16} /> }
+                  ].map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        tg?.HapticFeedback?.impactOccurred('light');
+                        if (p.id === 'custom') setIsCustomPickerOpen(true);
+                        else setSelectedPeriod(p.id as Period);
+                      }}
+                      className={`flex-shrink-0 h-11 px-6 rounded-2xl text-[12px] font-black uppercase tracking-[0.1em] transition-all flex items-center gap-2.5 border-2 ${
+                        selectedPeriod === p.id 
+                        ? 'bg-slate-900 border-slate-900 text-white shadow-xl shadow-slate-200' 
+                        : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
+                      }`}
+                    >
+                      {p.icon}
+                      {p.id === 'custom' && customRange.start ? (
+                          <span className="text-indigo-400 font-black">
+                              {new Date(customRange.start).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                              {customRange.end && ` - ${new Date(customRange.end).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}`}
+                          </span>
+                      ) : p.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex gap-2.5 overflow-x-auto no-scrollbar py-1 px-0.5">
+                  <button
+                    onClick={() => { setSelectedAccountId('all'); tg?.HapticFeedback?.impactOccurred('light'); }}
+                    className={`flex-shrink-0 h-11 px-6 rounded-2xl text-[11px] font-black uppercase tracking-[0.1em] transition-all flex items-center gap-2.5 border-2 ${
+                      selectedAccountId === 'all' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-white border-slate-100 text-slate-400'
+                    }`}
+                  >
+                    <Wallet size={16} /> <span className="whitespace-nowrap">Все счета</span>
+                  </button>
+                  {accounts.map(acc => (
+                    <button
+                      key={acc.id}
+                      onClick={() => { setSelectedAccountId(acc.id); tg?.HapticFeedback?.impactOccurred('light'); }}
+                      className={`flex-shrink-0 h-11 px-5 rounded-2xl text-[11px] font-black uppercase tracking-[0.1em] flex items-center gap-2.5 transition-all border-2 ${
+                        selectedAccountId === acc.id ? 'bg-white border-indigo-500 text-indigo-700 shadow-sm' : 'bg-white border-slate-100 text-slate-400'
+                      }`}
+                    >
+                      <span className="text-xl leading-none">{acc.icon}</span> {acc.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </header>
         </div>
-      </header>
+      </div>
 
-      <main className="px-4 pb-20 mt-4">
+      <main className="px-4 pb-24 mt-6">
         {groupedTransactions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
-             <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center text-slate-200 shadow-sm border border-slate-100">
-                <RefreshCw size={40} />
+          <div className="flex flex-col items-center justify-center py-24 text-center space-y-6">
+             <div className="w-28 h-28 bg-white rounded-[3rem] flex items-center justify-center text-slate-100 shadow-sm border border-slate-50">
+                <RefreshCw size={54} strokeWidth={1} className="animate-spin-slow opacity-20" />
              </div>
-             <div>
-               <p className="text-[14px] font-black text-slate-900 uppercase tracking-tight">Ничего не найдено</p>
-               <p className="text-[11px] text-slate-400 font-medium mt-1">Попробуйте изменить параметры фильтрации</p>
+             <div className="space-y-2">
+               <p className="text-[17px] font-black text-slate-900 uppercase tracking-tight">Ничего не найдено</p>
+               <p className="text-[12px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">Попробуйте изменить параметры<br/>фильтрации или поиска</p>
              </div>
           </div>
         ) : (
           groupedTransactions.map(group => (
-            <div key={group.date} className="mb-6 animate-slide-up">
-              <div className="sticky top-[270px] z-40 bg-slate-50/90 backdrop-blur-md py-2 mb-3">
-                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+            <div key={group.date} className="mb-10 animate-slide-up">
+              <div className="flex items-center gap-4 mb-5 px-1">
+                 <div className="h-[3px] w-8 bg-indigo-500 rounded-full" />
+                 <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] leading-none">
                     {group.date}
                  </h3>
+                 <div className="flex-grow h-[1px] bg-slate-200/60 rounded-full" />
               </div>
               
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {group.items.map(t => {
                   const cat = categories.find(c => c.id === t.categoryId);
                   const acc = accounts.find(a => a.id === t.accountId);
@@ -324,7 +353,7 @@ export const FullHistoryPage: React.FC<FullHistoryPageProps> = ({ state, onEditT
                   const displayName = linkedDebt ? linkedDebt.personName : (cat?.name || 'Операция');
                   const displayIcon = linkedDebt 
                     ? (linkedDebt.isBank ? '🏦' : '🤝') 
-                    : (isSubscription ? <RefreshCw size={18} className="text-indigo-500" /> : (cat?.icon || '📦'));
+                    : (isSubscription ? <RefreshCw size={20} className="text-indigo-500" /> : (cat?.icon || '📦'));
                   
                   const cleanNote = t.note.replace(/^\[(ПОДПИСКА|ДОЛГ)\]\s*/, '');
                   const timeStr = new Date(t.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
@@ -333,40 +362,39 @@ export const FullHistoryPage: React.FC<FullHistoryPageProps> = ({ state, onEditT
                     <div 
                       key={t.id} 
                       onClick={() => handleTxClick(t)}
-                      className={`bg-white p-4 rounded-[1.75rem] flex items-center justify-between border border-transparent shadow-sm transition-all group active:scale-[0.98] active:bg-slate-50 cursor-pointer hover:border-slate-100`}
+                      className={`bg-white p-5 rounded-[2rem] flex items-center justify-between border-2 border-transparent shadow-[0_2px_8px_-2px_rgba(0,0,0,0.03)] transition-all group active:scale-[0.97] active:bg-slate-50 cursor-pointer hover:border-indigo-50/50`}
                     >
-                      <div className="flex items-center gap-4 min-w-0">
+                      <div className="flex items-center gap-5 min-w-0">
                         <div 
-                          className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl shadow-inner shrink-0 bg-slate-50"
+                          className="w-12 h-12 rounded-[1.25rem] flex items-center justify-center text-2xl shadow-inner shrink-0 bg-slate-50 transition-transform group-active:rotate-6"
                           style={{ color: cat?.color || '#6366f1' }}
                         >
                           {displayIcon}
                         </div>
                         <div className="min-w-0">
-                          <h4 className="font-bold text-slate-900 text-[14px] leading-tight truncate uppercase tracking-tight">
+                          <h4 className="font-bold text-slate-900 text-[15px] leading-tight truncate uppercase tracking-tight">
                             {isSubscription ? cleanNote : displayName}
                           </h4>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase truncate">
+                          <div className="flex items-center gap-2.5 mt-1.5">
+                            <span className="text-[11px] text-slate-400 font-bold uppercase truncate max-w-[90px] tracking-tight">
                               {acc?.name}
                             </span>
-                            <span className="text-[9px] text-slate-300 font-bold">•</span>
-                            <span className="text-[10px] text-slate-400 font-bold">{timeStr}</span>
-                            {isSubscription && (
-                               <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 ml-1">Подписка</span>
-                            )}
+                            <div className="w-1 h-1 bg-slate-300 rounded-full" />
+                            <span className="text-[11px] text-slate-400 font-bold">{timeStr}</span>
                           </div>
                         </div>
                       </div>
-                      <div className="text-right shrink-0 ml-3">
-                        <p className={`font-black text-[16px] tracking-tighter ${
+                      <div className="text-right shrink-0 ml-4 flex flex-col items-end">
+                        <p className={`font-black text-[18px] tracking-tighter leading-none ${
                           t.type === 'income' ? 'text-emerald-500' : 
                           t.type === 'savings' ? 'text-indigo-600' : 'text-slate-900'
                         }`}>
                           {t.type === 'income' ? '+' : '-'}{t.amount.toLocaleString()}
                         </p>
-                        {cleanNote && !isSubscription && displayName !== cleanNote && (
-                          <p className="text-[9px] text-slate-300 font-bold truncate max-w-[80px] mt-0.5">{cleanNote}</p>
+                        {isSubscription ? (
+                          <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100 mt-1.5 shadow-sm">Subscription</span>
+                        ) : cleanNote && displayName !== cleanNote && (
+                          <p className="text-[10px] text-slate-300 font-bold truncate max-w-[80px] mt-1.5 uppercase tracking-tight">{cleanNote}</p>
                         )}
                       </div>
                     </div>
@@ -378,71 +406,84 @@ export const FullHistoryPage: React.FC<FullHistoryPageProps> = ({ state, onEditT
         )}
       </main>
 
-      {/* Custom Date Picker Modal */}
+      {/* --- Кастомный Пикер Диапазона --- */}
       {isCustomPickerOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setIsCustomPickerOpen(false)} />
-          <div className="relative w-full max-w-sm bg-white rounded-[2.5rem] p-6 shadow-2xl animate-slide-up flex flex-col">
-            <div className="flex items-center justify-between mb-6">
-              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() - 1)))} className="p-2 bg-slate-50 rounded-xl text-slate-500 active:scale-90 transition-all">
-                <ChevronLeft size={18} />
+        <div className="fixed inset-0 z-[200] flex items-end justify-center px-4 pb-10">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-fade-in" onClick={() => setIsCustomPickerOpen(false)} />
+          <div className="relative w-full max-w-md bg-white rounded-[3.5rem] p-10 shadow-2xl animate-slide-up flex flex-col">
+            <div className="w-14 h-1.5 bg-slate-100 rounded-full mx-auto mb-8 shrink-0" />
+            
+            <div className="flex items-center justify-between mb-10 px-2">
+              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() - 1)))} className="w-14 h-14 flex items-center justify-center bg-slate-50 rounded-2xl text-slate-400 active:scale-90 transition-all border border-slate-100/50">
+                <ChevronLeft size={28} strokeWidth={2.5} />
               </button>
               <div className="text-center">
-                <h3 className="font-black text-slate-900 uppercase text-[11px] tracking-widest">
+                <h3 className="font-black text-slate-900 uppercase text-[15px] tracking-[0.3em] leading-none">
                   {viewDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}
                 </h3>
               </div>
-              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() + 1)))} className="p-2 bg-slate-50 rounded-xl text-slate-500 active:scale-90 transition-all">
-                <ChevronRight size={18} />
+              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() + 1)))} className="w-14 h-14 flex items-center justify-center bg-slate-50 rounded-2xl text-slate-400 active:scale-90 transition-all border border-slate-100/50">
+                <ChevronRight size={28} strokeWidth={2.5} />
               </button>
             </div>
 
-            <div className="grid grid-cols-7 gap-1 mb-2">
+            <div className="grid grid-cols-7 gap-1 mb-4 px-1">
               {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(day => (
-                <div key={day} className="text-center text-[8px] font-black text-slate-300 uppercase py-1">{day}</div>
+                <div key={day} className="text-center text-[11px] font-black text-slate-300 uppercase py-2 tracking-widest">{day}</div>
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-7 gap-y-3 px-1 relative">
               {monthGrid.map((dateStr, idx) => {
-                if (!dateStr) return <div key={`empty-${idx}`} />;
+                if (!dateStr) return <div key={`empty-${idx}`} className="h-14" />;
                 const d = new Date(dateStr);
-                const isSelected = customRange.start === dateStr || customRange.end === dateStr;
+                const isStart = customRange.start === dateStr;
+                const isEnd = customRange.end === dateStr;
                 const isBetween = isInRange(dateStr);
                 const isToday = new Date().toISOString().split('T')[0] === dateStr;
                 const isDisabled = d.getTime() < new Date(new Date(minTransactionDate).setHours(0,0,0,0)).getTime();
 
+                const showRangeBackground = customRange.start && customRange.end && (isBetween || isStart || isEnd);
+
                 return (
-                  <button
-                    key={dateStr}
-                    disabled={isDisabled}
-                    onClick={() => handleDateClick(dateStr)}
-                    className={`aspect-square rounded-xl flex items-center justify-center transition-all relative text-[12px] ${
-                      isDisabled 
-                        ? 'text-slate-100 cursor-not-allowed' 
-                        : isSelected 
-                          ? 'bg-indigo-600 text-white font-black z-10 shadow-lg shadow-indigo-200' 
-                          : isBetween 
-                            ? 'bg-indigo-50 text-indigo-600 font-bold' 
-                            : isToday 
-                              ? 'text-indigo-500 font-black ring-1 ring-indigo-100' 
-                              : 'text-slate-700 font-bold hover:bg-slate-50'
-                    }`}
-                  >
-                    {d.getDate()}
-                  </button>
+                  <div key={dateStr} className="relative h-14 flex items-center justify-center">
+                    {showRangeBackground && (
+                      <div className={`absolute inset-y-1 bg-indigo-50/70 z-0 ${
+                        isStart ? 'left-1/2 right-0 rounded-l-none' : 
+                        isEnd ? 'left-0 right-1/2 rounded-r-none' : 
+                        'inset-x-0'
+                      }`} />
+                    )}
+                    <button
+                      disabled={isDisabled}
+                      onClick={() => handleDateClick(dateStr)}
+                      className={`relative z-10 w-12 h-12 rounded-[1.25rem] flex items-center justify-center transition-all text-[15px] ${
+                        isDisabled 
+                          ? 'text-slate-200 cursor-not-allowed opacity-40' 
+                          : (isStart || isEnd)
+                            ? 'bg-slate-900 text-white font-black shadow-2xl scale-110' 
+                            : isBetween 
+                              ? 'text-indigo-600 font-black' 
+                              : isToday 
+                                ? 'text-indigo-600 font-black ring-4 ring-indigo-50 bg-white' 
+                                : 'text-slate-800 font-bold active:bg-slate-50'
+                      }`}
+                    >
+                      {d.getDate()}
+                    </button>
+                  </div>
                 );
               })}
             </div>
 
-            <div className="mt-8 flex gap-3">
+            <div className="mt-12 flex gap-5">
               <button 
                 onClick={() => {
                   setCustomRange({ start: null, end: null });
                   setSelectedPeriod('all');
-                  setIsCustomPickerOpen(false);
+                  tg?.HapticFeedback?.notificationOccurred('warning');
                 }}
-                className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+                className="flex-1 h-16 bg-slate-50 text-slate-400 rounded-3xl text-[13px] font-black uppercase tracking-widest transition-all active:scale-95 border-2 border-transparent hover:border-slate-100"
               >
                 Сброс
               </button>
@@ -451,14 +492,20 @@ export const FullHistoryPage: React.FC<FullHistoryPageProps> = ({ state, onEditT
                 onClick={() => {
                   setSelectedPeriod('custom');
                   setIsCustomPickerOpen(false);
+                  tg?.HapticFeedback?.notificationOccurred('success');
                 }}
-                className="flex-[2] py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-20 active:scale-95 shadow-xl shadow-slate-200"
+                className="flex-[2] h-16 bg-slate-900 text-white rounded-3xl text-[13px] font-black uppercase tracking-[0.25em] shadow-2xl shadow-slate-900/30 disabled:opacity-20 active:scale-95 transition-all"
               >
                 Выбрать
               </button>
             </div>
 
-            <button onClick={() => setIsCustomPickerOpen(false)} className="absolute top-4 right-4 p-1 text-slate-300"><X size={20} /></button>
+            <button 
+              onClick={() => setIsCustomPickerOpen(false)} 
+              className="absolute top-8 right-8 p-2 text-slate-300 hover:text-slate-900 transition-colors"
+            >
+              <X size={30} strokeWidth={2.5} />
+            </button>
           </div>
         </div>
       )}
