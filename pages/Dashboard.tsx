@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AppState, Transaction, SavingsGoal, DashboardWidget } from '../types';
@@ -21,22 +22,23 @@ import {
   EyeOff,
   MoveUp,
   MoveDown,
-  Check
+  Check,
+  ShieldCheck
 } from 'lucide-react';
 
 interface DashboardProps {
   state: AppState;
+  isAdmin?: boolean;
   onEditTransaction: (tx: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
   onUpdateState: (newState: Partial<AppState>) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, onDeleteTransaction, onUpdateState }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ state, isAdmin, onEditTransaction, onDeleteTransaction, onUpdateState }) => {
   const { transactions, profile, debts, savings, categories, accounts, subscriptions = [] } = state;
   const [searchQuery, setSearchQuery] = useState('');
   const [isEditMode, setIsEditMode] = useState(false);
   const navigate = useNavigate();
-  const tg = (window as any).Telegram?.WebApp;
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -113,7 +115,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
   };
 
   const handleTxClick = (t: Transaction) => {
-    // We now allow clicking even on subscription transactions so the user can "undo" them
     onEditTransaction(t);
   };
 
@@ -370,7 +371,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onEditTransaction, 
                 {profile.avatar ? <img src={profile.avatar} alt="Avatar" className="w-full h-full object-cover" /> : <span className="leading-none">{profile.name.charAt(0)}</span>}
              </div>
              <div>
-               <h1 className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-1"><Sparkles size={10} className="text-indigo-500" /> FINFLOW</h1>
+               <h1 className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-1">
+                {isAdmin ? <ShieldCheck size={10} className="text-amber-500" /> : <Sparkles size={10} className="text-indigo-500" />} 
+                {isAdmin ? 'ADMIN PANEL' : 'FINFLOW'}
+               </h1>
                <p className="text-[14px] font-bold text-slate-900 mt-0">{getTimeGreeting()}, {profile.name}</p>
              </div>
           </Link>

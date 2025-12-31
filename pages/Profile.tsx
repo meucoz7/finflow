@@ -19,17 +19,21 @@ import {
   RefreshCw,
   LogOut,
   Trash2,
-  X
+  X,
+  Lock,
+  Terminal,
+  ServerCrash
 } from 'lucide-react';
 
 interface ProfileProps {
   state: AppState;
+  isAdmin?: boolean;
   onUpdateState: (newState: Partial<AppState>) => void;
 }
 
-type MenuTab = 'personal' | 'balance' | 'system';
+type MenuTab = 'personal' | 'balance' | 'system' | 'admin';
 
-export const Profile: React.FC<ProfileProps> = ({ state, onUpdateState }) => {
+export const Profile: React.FC<ProfileProps> = ({ state, isAdmin, onUpdateState }) => {
   const [activeTab, setActiveTab] = useState<MenuTab>('balance');
   const [editName, setEditName] = useState(state.profile.name);
   const [accountBalances, setAccountBalances] = useState<Record<string, string>>({});
@@ -97,12 +101,17 @@ export const Profile: React.FC<ProfileProps> = ({ state, onUpdateState }) => {
       <header className="px-2 pt-2">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-white text-lg font-bold shadow-lg shrink-0">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-bold shadow-lg shrink-0 ${isAdmin ? 'bg-amber-500' : 'bg-slate-900'}`}>
               {state.profile.name.charAt(0)}
             </div>
             <div>
-              <p className="text-slate-900 font-bold text-lg leading-tight">{state.profile.name}</p>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">FinFlow Premium</p>
+              <p className="text-slate-900 font-bold text-lg leading-tight flex items-center gap-1.5">
+                {state.profile.name}
+                {isAdmin && <ShieldCheck size={16} className="text-amber-500" />}
+              </p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                {isAdmin ? 'Administrator Mode' : 'FinFlow Premium'}
+              </p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -112,16 +121,17 @@ export const Profile: React.FC<ProfileProps> = ({ state, onUpdateState }) => {
           </div>
         </div>
 
-        <div className="bg-slate-200/40 p-1 rounded-2xl flex gap-1 backdrop-blur-sm border border-slate-100">
+        <div className="bg-slate-200/40 p-1 rounded-2xl flex gap-1 backdrop-blur-sm border border-slate-100 overflow-x-auto no-scrollbar">
           {[
             { id: 'personal', icon: <User size={14} />, label: 'Личное' },
             { id: 'balance', icon: <Wallet size={14} />, label: 'Баланс' },
-            { id: 'system', icon: <Database size={14} />, label: 'Система' }
+            { id: 'system', icon: <Database size={14} />, label: 'Система' },
+            ...(isAdmin ? [{ id: 'admin', icon: <Lock size={14} />, label: 'Админ' }] : [])
           ].map((tab) => (
             <button 
               key={tab.id}
               onClick={() => setActiveTab(tab.id as MenuTab)}
-              className={`flex-1 py-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${
+              className={`flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${
                 activeTab === tab.id ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'
               }`}
             >
@@ -226,13 +236,6 @@ export const Profile: React.FC<ProfileProps> = ({ state, onUpdateState }) => {
                 Применить баланс
               </button>
             </section>
-
-            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-3 items-start">
-               <Info size={16} className="text-amber-500 shrink-0 mt-0.5" />
-               <p className="text-[11px] text-amber-700 font-bold leading-relaxed">
-                 Прямая корректировка не создает записи в истории. Используйте её только для сверки остатков.
-               </p>
-            </div>
           </div>
         )}
 
@@ -271,19 +274,46 @@ export const Profile: React.FC<ProfileProps> = ({ state, onUpdateState }) => {
                 </button>
               </div>
             </section>
+          </div>
+        )}
 
-            <section className="bg-white rounded-[2rem] overflow-hidden shadow-sm border border-slate-100">
-               <div className="p-5 border-b border-slate-50">
-                <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-widest">О приложении</h3>
+        {activeTab === 'admin' && isAdmin && (
+          <div className="space-y-4 animate-slide-up">
+            <section className="bg-slate-900 rounded-[2rem] p-6 text-white shadow-2xl space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-slate-900">
+                   <Terminal size={22} />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm uppercase tracking-widest">Admin Panel</h3>
+                  <p className="text-[10px] text-slate-400 font-bold">DEVELOPER TOOLS ENABLED</p>
+                </div>
               </div>
-              <div className="p-5 space-y-4">
-                 <div className="flex justify-between items-center text-[12px]">
-                    <span className="text-slate-400 font-bold">Версия</span>
-                    <span className="text-slate-900 font-bold">2.4.0 (Stable)</span>
-                 </div>
-                 <div className="flex justify-between items-center text-[12px]">
-                    <span className="text-slate-400 font-bold">Разработчик</span>
-                    <span className="text-indigo-600 font-bold">FinFlow Team</span>
+
+              <div className="grid grid-cols-1 gap-3">
+                 <button className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 active:bg-white/10 transition-colors text-left">
+                    <div className="flex items-center gap-3">
+                      <Database size={18} className="text-indigo-400" />
+                      <span className="text-[12px] font-bold">Сбросить серверный кэш</span>
+                    </div>
+                    <ChevronRight size={14} className="opacity-40" />
+                 </button>
+
+                 <button className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 active:bg-white/10 transition-colors text-left">
+                    <div className="flex items-center gap-3">
+                      <ServerCrash size={18} className="text-rose-400" />
+                      <span className="text-[12px] font-bold">Тест 500 ошибки</span>
+                    </div>
+                    <ChevronRight size={14} className="opacity-40" />
+                 </button>
+
+                 <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                    <p className="text-[10px] font-black text-slate-500 uppercase mb-2">System Diagnostics</p>
+                    <div className="space-y-1 text-[11px] font-mono text-indigo-300">
+                       <p>STATE_SIZE: {JSON.stringify(state).length} bytes</p>
+                       <p>PLATFORM: {(window as any).Telegram?.WebApp?.platform || 'web'}</p>
+                       <p>VER: 2.4.0</p>
+                    </div>
                  </div>
               </div>
             </section>
@@ -291,7 +321,6 @@ export const Profile: React.FC<ProfileProps> = ({ state, onUpdateState }) => {
         )}
       </main>
 
-      {/* Modern Reset Confirmation Modal */}
       {showResetConfirm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={() => setShowResetConfirm(false)} />
@@ -321,13 +350,6 @@ export const Profile: React.FC<ProfileProps> = ({ state, onUpdateState }) => {
                 Отмена
               </button>
             </div>
-
-            <button 
-              onClick={() => setShowResetConfirm(false)}
-              className="absolute top-4 right-4 p-2 text-slate-300 hover:text-slate-500 transition-colors"
-            >
-              <X size={20} />
-            </button>
           </div>
         </div>
       )}

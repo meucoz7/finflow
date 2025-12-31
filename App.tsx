@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { HashRouter, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
@@ -15,6 +16,7 @@ import { SubscriptionsPage } from './pages/SubscriptionsPage';
 import { TransactionModal } from './components/TransactionModal';
 import { AppState, Transaction, Debt } from './types';
 import { DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS } from './constants';
+import { ADMIN_IDS } from './config';
 import { Loader2, CloudOff } from 'lucide-react';
 
 const MOCK_STATE: AppState = {
@@ -100,6 +102,11 @@ const AppContent: React.FC = () => {
 
   const tg = (window as any).Telegram?.WebApp;
   const hasAttemptedLoad = useRef(false);
+
+  const isAdmin = useMemo(() => {
+    const uid = tg?.initDataUnsafe?.user?.id;
+    return uid ? ADMIN_IDS.includes(uid) : false;
+  }, [tg]);
 
   const loadData = useCallback(async (uid: number) => {
     setSyncStatus('syncing');
@@ -223,7 +230,6 @@ const AppContent: React.FC = () => {
       finalTx = { ...newTx, id: `tx_${Date.now()}` };
     }
 
-    // Side effect: Handle Subscription advancement
     if (finalTx.subscriptionId) {
       updatedSubscriptions = updatedSubscriptions.map(sub => {
         if (sub.id === finalTx.subscriptionId) {
@@ -247,7 +253,6 @@ const AppContent: React.FC = () => {
             let newAmount = action === 'increase' ? d.amount + amount : Math.max(0, d.amount - amount);
             let newDueDate = d.dueDate;
             
-            // Side effect: Advance monthly debt due date if executing payment
             if (d.isMonthly && action === 'decrease' && d.dueDate) {
                const nextDate = new Date(d.dueDate);
                nextDate.setMonth(nextDate.getMonth() + 1);
@@ -291,11 +296,9 @@ const AppContent: React.FC = () => {
     let updatedDebts = [...state.debts];
     let updatedSubscriptions = [...state.subscriptions];
 
-    // Check if it's a subscription transaction to undo
     if (txToDelete.subscriptionId || txToDelete.note.startsWith('[ПОДПИСКА]')) {
       const sub = state.subscriptions.find(s => s.id === txToDelete.subscriptionId || s.name === txToDelete.note.replace('[ПОДПИСКА] ', ''));
       if (sub) {
-        // Roll back nextPaymentDate
         const prevDate = new Date(sub.nextPaymentDate);
         if (sub.period === 'monthly') prevDate.setMonth(prevDate.getMonth() - 1);
         else if (sub.period === 'yearly') prevDate.setFullYear(prevDate.getFullYear() - 1);
@@ -339,7 +342,7 @@ const AppContent: React.FC = () => {
         </div>
 
         <Routes>
-          <Route path="/" element={<Dashboard state={state} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsModalOpen(true); }} onDeleteTransaction={handleDeleteTransaction} onUpdateState={handleUpdateState} />} />
+          <Route path="/" element={<Dashboard state={state} isAdmin={isAdmin} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsModalOpen(true); }} onDeleteTransaction={handleDeleteTransaction} onUpdateState={handleUpdateState} />} />
           <Route path="/accounts" element={<AccountsPage state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/joint" element={<JointBudget state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/calendar" element={<CalendarPage state={state} onUpdateState={handleUpdateState} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsModalOpen(true); }} />} />
@@ -347,7 +350,7 @@ const AppContent: React.FC = () => {
           <Route path="/debts" element={<Debts state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/savings" element={<Savings state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/subscriptions" element={<SubscriptionsPage state={state} onUpdateState={handleUpdateState} />} />
-          <Route path="/profile" element={<Profile state={state} onUpdateState={handleUpdateState} />} />
+          <Route path="/profile" element={<Profile state={state} isAdmin={isAdmin} onUpdateState={handleUpdateState} />} />
           <Route path="/analytics" element={<AnalyticsPage state={state} />} />
           <Route path="/history" element={<FullHistoryPage state={state} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsModalOpen(true); }} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
