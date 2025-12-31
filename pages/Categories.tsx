@@ -1,7 +1,7 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AppState, Category, TransactionType } from '../types';
-import { Plus, Trash2, Edit2, ShoppingBag, Sparkles, Palette } from 'lucide-react';
+import { Plus, Trash2, Edit2, ShoppingBag, Sparkles, Palette, Check, X } from 'lucide-react';
 
 interface CategoriesProps {
   state: AppState;
@@ -10,13 +10,20 @@ interface CategoriesProps {
 
 const PRESET_COLORS = [
   '#6366f1', // Indigo
-  '#10b981', // Emerald
-  '#f43f5e', // Rose
-  '#f59e0b', // Amber
-  '#0ea5e9', // Sky
   '#8b5cf6', // Violet
   '#ec4899', // Pink
-  '#475569', // Slate
+  '#f43f5e', // Rose
+  '#f97316', // Orange
+  '#f59e0b', // Amber
+  '#eab308', // Yellow
+  '#84cc16', // Lime
+  '#10b981', // Emerald
+  '#14b8a6', // Teal
+  '#0ea5e9', // Sky
+  '#3b82f6', // Blue
+  '#64748b', // Slate
+  '#94a3b8', // Gray-Blue
+  '#a8a29e', // Stone
 ];
 
 const ICON_GROUPS = [
@@ -32,9 +39,9 @@ const ICON_GROUPS = [
 export const Categories: React.FC<CategoriesProps> = ({ state, onUpdateState }) => {
   const [activeType, setActiveType] = useState<Exclude<TransactionType, 'savings'>>('expense');
   const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [newCat, setNewCat] = useState({ name: '', icon: '📦', color: '#6366f1' });
-  const [hue, setHue] = useState(230);
 
   const filtered = state.categories.filter(c => c.type === activeType);
 
@@ -44,7 +51,6 @@ export const Categories: React.FC<CategoriesProps> = ({ state, onUpdateState }) 
         title: 'Доходы',
         placeholder: 'Например: Зарплата',
         defaultColor: '#10b981',
-        defaultHue: 160,
         icon: <Sparkles size={14} />,
         accent: 'text-emerald-500'
       };
@@ -53,31 +59,55 @@ export const Categories: React.FC<CategoriesProps> = ({ state, onUpdateState }) 
       title: 'Расходы',
       placeholder: 'Например: Кафе',
       defaultColor: '#6366f1',
-      defaultHue: 230,
       icon: <ShoppingBag size={14} />,
       accent: 'text-indigo-500'
     };
   }, [activeType]);
 
-  // Fix: Directly use the 'color' string to avoid type mismatch with 'ctx.fillStyle'
-  useEffect(() => {
-    const color = `hsl(${hue}, 75%, 55%)`;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.fillStyle = color;
-      setNewCat(prev => ({ ...prev, color: color }));
+  const resetForm = () => {
+    setIsAdding(false);
+    setEditingId(null);
+    setShowIconPicker(false);
+    setNewCat({ name: '', icon: '📦', color: config.defaultColor });
+  };
+
+  const handleToggleForm = () => {
+    if (isAdding || editingId) {
+      resetForm();
+    } else {
+      setIsAdding(true);
     }
-  }, [hue]);
+  };
+
+  const startEditing = (cat: Category) => {
+    setEditingId(cat.id);
+    setIsAdding(false); // Прячем флаг добавления, чтобы не было конфликта
+    setNewCat({ name: cat.name, icon: cat.icon, color: cat.color });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const addCategory = () => {
     if (!newCat.name) return;
-    const cat: Category = { ...newCat, id: Date.now().toString(), type: activeType };
-    onUpdateState({ categories: [...state.categories, cat] });
-    setIsAdding(false);
-    setShowIconPicker(false);
-    setNewCat({ name: '', icon: '📦', color: config.defaultColor });
-    setHue(config.defaultHue);
+
+    if (editingId) {
+      // Режим редактирования
+      const updatedCategories = state.categories.map(c => 
+        c.id === editingId ? { ...c, ...newCat } : c
+      );
+      onUpdateState({ categories: updatedCategories });
+    } else {
+      // Режим создания
+      const cat: Category = { ...newCat, id: Date.now().toString(), type: activeType };
+      onUpdateState({ categories: [...state.categories, cat] });
+    }
+
+    resetForm();
+  };
+
+  const deleteCategory = (id: string) => {
+    if (confirm('Удалить эту категорию? Это не удалит прошлые операции, но они останутся без группы.')) {
+      onUpdateState({ categories: state.categories.filter(c => c.id !== id) });
+    }
   };
 
   return (
@@ -87,12 +117,14 @@ export const Categories: React.FC<CategoriesProps> = ({ state, onUpdateState }) 
           <h1 className={`${config.accent} text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-1.5`}>
             {config.icon} Настройка групп
           </h1>
-          <p className="text-slate-900 font-black text-base">{config.title}</p>
+          <p className="text-slate-900 font-black text-base">
+            {editingId ? 'Редактирование' : config.title}
+          </p>
         </div>
         <button 
-          onClick={() => setIsAdding(!isAdding)}
+          onClick={handleToggleForm}
           className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-all active:scale-90 outline-none focus:outline-none ${
-            isAdding ? 'bg-slate-900 text-white rotate-45' : 'bg-white border border-slate-100 text-slate-900'
+            isAdding || editingId ? 'bg-slate-900 text-white rotate-45' : 'bg-white border border-slate-100 text-slate-900'
           }`}
         >
           <Plus size={20} strokeWidth={3} />
@@ -103,7 +135,7 @@ export const Categories: React.FC<CategoriesProps> = ({ state, onUpdateState }) 
         {(['expense', 'income'] as const).map(t => (
           <button 
             key={t}
-            onClick={() => { setActiveType(t); setIsAdding(false); }}
+            onClick={() => { setActiveType(t); resetForm(); }}
             className={`flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all outline-none focus:outline-none ${
               activeType === t ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'
             }`}
@@ -113,10 +145,15 @@ export const Categories: React.FC<CategoriesProps> = ({ state, onUpdateState }) 
         ))}
       </div>
 
-      {isAdding && (
+      {(isAdding || editingId) && (
         <div className="bg-white p-6 rounded-[2.5rem] shadow-2xl border border-slate-100 space-y-6 animate-slide-up relative overflow-hidden outline-none">
           <div className="absolute top-0 left-0 w-full h-2" style={{ backgroundColor: newCat.color }} />
           
+          <div className="flex justify-between items-center -mb-2">
+             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{editingId ? 'Правка категории' : 'Новая категория'}</span>
+             <button onClick={resetForm} className="text-slate-300 hover:text-rose-500"><X size={18} /></button>
+          </div>
+
           <div className="space-y-5">
             <div className="flex gap-4">
               <button 
@@ -158,47 +195,28 @@ export const Categories: React.FC<CategoriesProps> = ({ state, onUpdateState }) 
               </div>
             )}
 
-            <div className="space-y-5 bg-slate-50/50 p-5 rounded-[2rem] border border-slate-100 shadow-inner">
+            <div className="space-y-4 bg-slate-50/50 p-5 rounded-[2rem] border border-slate-100 shadow-inner">
               <div className="flex justify-between items-center px-1">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                  <Palette size={12} /> Палитра и тон
+                  <Palette size={12} /> Палитра
                 </p>
                 <div className="px-2 py-1 bg-white rounded-lg shadow-sm border border-slate-100">
                   <span className="text-[10px] font-black text-slate-900 font-mono">{newCat.color.toUpperCase()}</span>
                 </div>
               </div>
 
-              <div className="flex gap-2.5 overflow-x-auto no-scrollbar py-1">
+              <div className="grid grid-cols-5 gap-3">
                 {PRESET_COLORS.map(color => (
                   <button
                     key={color}
                     type="button"
-                    onClick={() => {
-                      setNewCat({...newCat, color});
-                      const hues: Record<string, number> = { '#6366f1': 230, '#10b981': 160, '#f43f5e': 350, '#f59e0b': 40, '#0ea5e9': 200, '#8b5cf6': 260, '#ec4899': 330, '#475569': 210 };
-                      if (hues[color]) setHue(hues[color]);
-                    }}
-                    className={`w-10 h-10 rounded-full shrink-0 transition-all active:scale-90 shadow-sm border-2 outline-none focus:outline-none ${newCat.color === color ? 'border-slate-900 scale-110 shadow-lg' : 'border-white'}`}
-                    style={{ backgroundColor: color, boxShadow: newCat.color === color ? `0 0 15px ${color}40` : 'none' }}
-                  />
+                    onClick={() => setNewCat({...newCat, color})}
+                    className={`aspect-square rounded-full transition-all active:scale-90 shadow-sm border-2 flex items-center justify-center outline-none focus:outline-none ${newCat.color === color ? 'border-slate-900 scale-110 shadow-lg' : 'border-white'}`}
+                    style={{ backgroundColor: color, boxShadow: newCat.color === color ? `0 0 12px ${color}60` : 'none' }}
+                  >
+                    {newCat.color === color && <Check size={14} className="text-white" strokeWidth={4} />}
+                  </button>
                 ))}
-              </div>
-
-              <div className="relative pt-2">
-                <div className="h-8 w-full rounded-[1rem] relative shadow-inner overflow-hidden border border-slate-200/50" style={{ background: 'linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)' }}>
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="360" 
-                    value={hue}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 outline-none focus:outline-none"
-                    onChange={(e) => setHue(parseInt(e.target.value))}
-                  />
-                  <div 
-                    className="absolute top-0 bottom-0 w-2.5 bg-white shadow-[0_0_15px_rgba(0,0,0,0.3)] z-10 pointer-events-none rounded-full border-2 border-slate-900/10"
-                    style={{ left: `calc(${(hue / 360) * 100}% - 5px)` }}
-                  />
-                </div>
               </div>
             </div>
           </div>
@@ -208,7 +226,7 @@ export const Categories: React.FC<CategoriesProps> = ({ state, onUpdateState }) 
             disabled={!newCat.name}
             className="w-full py-5 bg-slate-900 text-white rounded-[2rem] font-black uppercase text-[12px] tracking-[0.15em] disabled:opacity-20 transition-all active:scale-95 shadow-xl outline-none focus:outline-none"
           >
-            Создать группу
+            {editingId ? 'Сохранить изменения' : 'Создать группу'}
           </button>
         </div>
       )}
@@ -218,7 +236,7 @@ export const Categories: React.FC<CategoriesProps> = ({ state, onUpdateState }) 
           <div key={cat.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-50 flex items-center justify-between group active:bg-slate-50 transition-all outline-none">
             <div className="flex items-center gap-4 min-w-0">
               <div 
-                className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-sm"
+                className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-sm transition-transform group-hover:scale-110"
                 style={{ backgroundColor: `${cat.color}12`, color: cat.color }}
               >
                 {cat.icon}
@@ -231,11 +249,16 @@ export const Categories: React.FC<CategoriesProps> = ({ state, onUpdateState }) 
                 </div>
               </div>
             </div>
-            <div className="flex gap-1 pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
-               <button className="w-9 h-9 flex items-center justify-center text-slate-300 hover:text-indigo-500 outline-none"><Edit2 size={16} /></button>
+            <div className="flex gap-1 pr-1">
                <button 
-                onClick={() => onUpdateState({ categories: state.categories.filter(c => c.id !== cat.id) })}
-                className="w-9 h-9 flex items-center justify-center text-slate-300 hover:text-rose-500 outline-none"
+                onClick={() => startEditing(cat)}
+                className="w-9 h-9 flex items-center justify-center text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all outline-none"
+               >
+                <Edit2 size={16} />
+               </button>
+               <button 
+                onClick={() => deleteCategory(cat.id)}
+                className="w-9 h-9 flex items-center justify-center text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all outline-none"
                >
                 <Trash2 size={16} />
                </button>
