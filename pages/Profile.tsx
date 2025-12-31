@@ -25,7 +25,8 @@ import {
   ServerCrash,
   Clock,
   Activity,
-  Bell
+  Bell,
+  Loader2
 } from 'lucide-react';
 
 interface ProfileProps {
@@ -42,6 +43,9 @@ export const Profile: React.FC<ProfileProps> = ({ state, isAdmin, onUpdateState 
   const [accountBalances, setAccountBalances] = useState<Record<string, string>>({});
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [adminStats, setAdminStats] = useState<any>(null);
+  const [isTestingReminders, setIsTestingReminders] = useState(false);
+
+  const tg = (window as any).Telegram?.WebApp;
 
   useEffect(() => {
     const balances: Record<string, string> = {};
@@ -51,19 +55,43 @@ export const Profile: React.FC<ProfileProps> = ({ state, isAdmin, onUpdateState 
     setAccountBalances(balances);
   }, [state.accounts]);
 
-  // Загрузка статистики для админа
-  useEffect(() => {
+  const loadAdminStats = () => {
     if (activeTab === 'admin' && isAdmin) {
       fetch('/api/admin/stats')
         .then(res => res.json())
         .then(setAdminStats)
         .catch(() => {});
     }
+  };
+
+  useEffect(() => {
+    loadAdminStats();
   }, [activeTab, isAdmin]);
 
   const saveProfile = () => {
     onUpdateState({ profile: { ...state.profile, name: editName } });
     alert('Профиль обновлен! ✨');
+  };
+
+  const handleTriggerTest = async () => {
+    setIsTestingReminders(true);
+    try {
+      const myId = tg?.initDataUnsafe?.user?.id;
+      const res = await fetch('/api/admin/trigger-reminders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetId: myId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Тест запущен! Отправлено сообщений: ${data.sentCount}. Проверьте бота.`);
+        loadAdminStats();
+      }
+    } catch (e) {
+      alert('Ошибка при запуске теста.');
+    } finally {
+      setIsTestingReminders(false);
+    }
   };
 
   const updateAccountBalance = (id: string, value: string) => {
@@ -245,7 +273,6 @@ export const Profile: React.FC<ProfileProps> = ({ state, isAdmin, onUpdateState 
 
         {activeTab === 'admin' && isAdmin && (
           <div className="space-y-4 animate-slide-up">
-            {/* Блок мониторинга напоминаний */}
             <section className="bg-slate-900 rounded-[2rem] p-6 text-white shadow-2xl space-y-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-slate-900 shadow-lg shadow-amber-500/20">
@@ -280,10 +307,12 @@ export const Profile: React.FC<ProfileProps> = ({ state, isAdmin, onUpdateState 
                     <div className={`w-2 h-2 rounded-full ${adminStats?.isCheckWindow ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
                  </div>
                  <button 
-                  onClick={() => alert('Команда отправлена. Проверьте логи сервера.')}
+                  disabled={isTestingReminders}
+                  onClick={handleTriggerTest}
                   className="w-full py-3 bg-amber-500 text-slate-900 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                  >
-                    <Bell size={14} /> Тест рассылки (Все)
+                    {isTestingReminders ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />} 
+                    Тест рассылки (Себе)
                  </button>
               </div>
 
@@ -291,7 +320,7 @@ export const Profile: React.FC<ProfileProps> = ({ state, isAdmin, onUpdateState 
                  <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Технические данные</p>
                  <div className="space-y-1 text-[11px] font-mono text-indigo-300/70">
                     <p>PLATFORM: {(window as any).Telegram?.WebApp?.platform || 'web'}</p>
-                    <p>VER: 2.5.1-stable</p>
+                    <p>VER: 2.5.2-clean-logs</p>
                     <p>SYNC_DATE: {adminStats?.serverDateMSK}</p>
                  </div>
               </div>

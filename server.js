@@ -88,6 +88,7 @@ async function checkReminders(targetId = null) {
   const msk = getMSKTime();
   const todayStr = msk.isoDate;
   
+  // Если это не принудительный запуск (targetId), то проверяем время (после 12:00)
   if (!targetId && msk.hours < 12) return;
 
   lastGlobalCheckTime = msk.fullDate.toLocaleTimeString('ru-RU');
@@ -155,8 +156,11 @@ async function checkReminders(targetId = null) {
       }
       totalSent += userSentCount;
     }
-    if (totalSent > 0) console.log(`✅ Рассылка завершена. Отправлено сообщений: ${totalSent}`);
-  } catch (err) { console.error('CheckReminders Error:', err); }
+    return totalSent;
+  } catch (err) { 
+    console.error('CheckReminders Error:', err); 
+    return 0;
+  }
 }
 
 // Проверка каждые 15 минут
@@ -171,6 +175,13 @@ app.get('/api/admin/stats', async (req, res) => {
     lastCheck: lastGlobalCheckTime,
     isCheckWindow: msk.hours >= 12
   });
+});
+
+// Эндпоинт для теста рассылки из админки
+app.post('/api/admin/trigger-reminders', async (req, res) => {
+  const { targetId } = req.body;
+  const count = await checkReminders(targetId || null);
+  res.json({ success: true, sentCount: count });
 });
 
 if (BOT_TOKEN) {
