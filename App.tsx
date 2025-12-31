@@ -203,6 +203,7 @@ const AppContent: React.FC = () => {
   const handleSaveTransaction = (newTx: Omit<Transaction, 'id'>, newDebtName?: string) => {
     let finalTx: Transaction;
     let updatedDebts = [...state.debts];
+    let updatedSubscriptions = [...state.subscriptions];
 
     if (editingTransaction) {
       finalTx = { ...newTx, id: editingTransaction.id };
@@ -222,6 +223,20 @@ const AppContent: React.FC = () => {
       finalTx = { ...newTx, id: `tx_${Date.now()}` };
     }
 
+    // Side effect: Handle Subscription advancement
+    if (finalTx.subscriptionId) {
+      updatedSubscriptions = updatedSubscriptions.map(sub => {
+        if (sub.id === finalTx.subscriptionId) {
+          const nextDate = new Date(sub.nextPaymentDate);
+          if (sub.period === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+          else if (sub.period === 'yearly') nextDate.setFullYear(nextDate.getFullYear() + 1);
+          else if (sub.period === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+          return { ...sub, nextPaymentDate: nextDate.toISOString().split('T')[0] };
+        }
+        return sub;
+      });
+    }
+
     if (finalTx.linkedDebtId || newDebtName) {
       const amount = finalTx.amount;
       const action = finalTx.debtAction;
@@ -229,8 +244,17 @@ const AppContent: React.FC = () => {
       if (finalTx.linkedDebtId) {
         updatedDebts = updatedDebts.map(d => {
           if (d.id === finalTx.linkedDebtId) {
-            const newAmount = action === 'increase' ? d.amount + amount : Math.max(0, d.amount - amount);
-            return { ...d, amount: newAmount };
+            let newAmount = action === 'increase' ? d.amount + amount : Math.max(0, d.amount - amount);
+            let newDueDate = d.dueDate;
+            
+            // Side effect: Advance monthly debt due date if executing payment
+            if (d.isMonthly && action === 'decrease' && d.dueDate) {
+               const nextDate = new Date(d.dueDate);
+               nextDate.setMonth(nextDate.getMonth() + 1);
+               newDueDate = nextDate.toISOString().split('T')[0];
+            }
+
+            return { ...d, amount: newAmount, dueDate: newDueDate };
           }
           return d;
         });
@@ -255,7 +279,8 @@ const AppContent: React.FC = () => {
 
     handleUpdateState({ 
       transactions: updatedTransactions,
-      debts: updatedDebts
+      debts: updatedDebts,
+      subscriptions: updatedSubscriptions
     });
   };
 
@@ -317,7 +342,7 @@ const AppContent: React.FC = () => {
           <Route path="/" element={<Dashboard state={state} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsModalOpen(true); }} onDeleteTransaction={handleDeleteTransaction} onUpdateState={handleUpdateState} />} />
           <Route path="/accounts" element={<AccountsPage state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/joint" element={<JointBudget state={state} onUpdateState={handleUpdateState} />} />
-          <Route path="/calendar" element={<CalendarPage state={state} onUpdateState={handleUpdateState} />} />
+          <Route path="/calendar" element={<CalendarPage state={state} onUpdateState={handleUpdateState} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsModalOpen(true); }} />} />
           <Route path="/categories" element={<Categories state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/debts" element={<Debts state={state} onUpdateState={handleUpdateState} />} />
           <Route path="/savings" element={<Savings state={state} onUpdateState={handleUpdateState} />} />

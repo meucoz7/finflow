@@ -12,12 +12,15 @@ import {
   AlertCircle,
   X,
   RefreshCw as RefreshIcon,
-  Bell
+  Bell,
+  Trash2,
+  Check
 } from 'lucide-react';
 
 interface CalendarPageProps {
   state: AppState;
   onUpdateState: (newState: Partial<AppState>) => void;
+  onEditTransaction: (tx: Transaction) => void;
 }
 
 const parseLocalDate = (dateStr: string) => {
@@ -25,8 +28,8 @@ const parseLocalDate = (dateStr: string) => {
   return new Date(y, m - 1, d);
 };
 
-export const CalendarPage: React.FC<CalendarPageProps> = ({ state, onUpdateState }) => {
-  const { transactions, categories, debts, profile, subscriptions = [] } = state;
+export const CalendarPage: React.FC<CalendarPageProps> = ({ state, onUpdateState, onEditTransaction }) => {
+  const { transactions, categories, debts, profile, subscriptions = [], accounts } = state;
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [isFullCalendarOpen, setIsFullCalendarOpen] = useState(false);
   const [viewDate, setViewDate] = useState(new Date()); 
@@ -128,50 +131,70 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ state, onUpdateState
     setViewDate(prev => new Date(prev.getFullYear(), prev.getMonth() + offset, 1));
   };
 
-  const markAsDone = (item: any) => {
+  const handleExecuteItem = (item: any) => {
+    let tx: any;
+    
     if (item.itemType === 'transaction') {
-      const newTransactions = transactions.map(t => 
-        t.id === item.id ? { ...t, isPlanned: false, date: new Date().toISOString() } : t
-      );
-      onUpdateState({ transactions: newTransactions });
+      const originalTx = transactions.find(t => t.id === item.id);
+      if (originalTx) {
+        tx = { ...originalTx, isPlanned: false, date: new Date().toISOString() };
+      }
     } else if (item.itemType === 'subscription') {
       const sub = subscriptions.find(s => s.id === item.id);
       if (sub) {
-        // Create actual transaction with prefix for better identification in history
-        const newTx: Transaction = {
-          id: `tx_sub_${Date.now()}`,
+        tx = {
           amount: sub.amount,
-          categoryId: sub.categoryId || categories.find(c => c.type === 'expense')?.id || '4',
+          categoryId: sub.categoryId || categories.find(c => c.type === 'expense')?.id || '1',
           accountId: sub.accountId,
           date: new Date().toISOString(),
           note: `[ПОДПИСКА] ${sub.name}`,
           type: 'expense',
-          subscriptionId: sub.id // Link for undoing
+          subscriptionId: sub.id
         };
-        
-        // Update next payment date
-        const nextDate = new Date(sub.nextPaymentDate);
-        if (sub.period === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
-        else if (sub.period === 'yearly') nextDate.setFullYear(nextDate.getFullYear() + 1);
-        else if (sub.period === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
-
-        onUpdateState({
-          transactions: [...transactions, newTx],
-          subscriptions: subscriptions.map(s => s.id === item.id ? { ...s, nextPaymentDate: nextDate.toISOString().split('T')[0] } : s)
-        });
       }
-    } else {
+    } else if (item.itemType === 'debt') {
+      const debt = debts.find(d => d.id === item.id);
+      if (debt) {
+        tx = {
+          amount: debt.amount,
+          categoryId: categories.find(c => c.name.toLowerCase().includes('долг') && c.type === (debt.type === 'i_owe' ? 'expense' : 'income'))?.id || 'debt_system',
+          accountId: accounts[0]?.id || '',
+          date: new Date().toISOString(),
+          note: `[ДОЛГ] ${debt.personName}`,
+          type: debt.type === 'i_owe' ? 'expense' : 'income',
+          linkedDebtId: debt.id,
+          debtAction: 'decrease'
+        };
+      }
+    }
+    
+    if (tx) {
+      onEditTransaction(tx);
+    }
+  };
+
+  const handleCancelItem = (item: any) => {
+    if (!confirm('Вы уверены, что хотите отменить это запланированное событие?')) return;
+
+    if (item.itemType === 'transaction') {
+      onUpdateState({ transactions: transactions.filter(t => t.id !== item.id) });
+    } else if (item.itemType === 'subscription') {
+      // Skipping this payment - maybe just deactivate it or confirm skip? 
+      // User said "отменить", so let's just confirm skipping one period or deactivating.
+      // We'll deactivate to be safe.
+      onUpdateState({ subscriptions: subscriptions.map(s => s.id === item.id ? { ...s, isActive: false } : s) });
+    } else if (item.itemType === 'debt') {
       const debt = debts.find(d => d.id === item.id);
       if (debt?.isMonthly) {
+        // Skip this installment
         const nextDate = new Date(debt.dueDate!);
         nextDate.setMonth(nextDate.getMonth() + 1);
         onUpdateState({
           debts: debts.map(d => d.id === item.id ? { ...d, dueDate: nextDate.toISOString().split('T')[0] } : d)
         });
       } else {
-        if(confirm('Удалить выполненное обязательство?')) {
-          onUpdateState({ debts: debts.filter(d => d.id !== item.id) });
-        }
+        // For one-off debts, cancel means delete or clear date
+        onUpdateState({ debts: debts.map(d => d.id === item.id ? { ...d, dueDate: undefined } : d) });
       }
     }
   };
@@ -277,7 +300,13 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ state, onUpdateState
         ) : (
           <div className="space-y-3">
             {filteredItems.map(item => (
-              <PlannedItemCard key={`${item.itemType}-${item.id}`} item={item} onDone={() => markAsDone(item)} profile={profile} />
+              <PlannedItemCard 
+                key={`${item.itemType}-${item.id}`} 
+                item={item} 
+                onExecute={() => handleExecuteItem(item)} 
+                onCancel={() => handleCancelItem(item)}
+                profile={profile} 
+              />
             ))}
           </div>
         )}
@@ -341,7 +370,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ state, onUpdateState
   );
 };
 
-const PlannedItemCard: React.FC<{ item: any; onDone: () => void; profile: any }> = ({ item, onDone, profile }) => {
+const PlannedItemCard: React.FC<{ item: any; onExecute: () => void; onCancel: () => void; profile: any }> = ({ item, onExecute, onCancel, profile }) => {
   const isOverdue = new Date(item.date).getTime() < new Date().setHours(0,0,0,0);
   
   return (
@@ -365,17 +394,26 @@ const PlannedItemCard: React.FC<{ item: any; onDone: () => void; profile: any }>
           )}
         </div>
       </div>
-      <div className="text-right flex items-center gap-3">
-        <p className={`text-[15px] font-black ${item.type === 'income' ? 'text-emerald-500' : 'text-slate-900'}`}>
+      <div className="text-right flex items-center gap-2.5">
+        <p className={`text-[15px] font-black mr-1 ${item.type === 'income' ? 'text-emerald-500' : 'text-slate-900'}`}>
           {item.amount.toLocaleString()}
         </p>
-        <button 
-          onClick={onDone}
-          className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center active:scale-90 transition-all shadow-lg shadow-slate-200"
-          title="Выполнено"
-        >
-          <CheckCircle size={18} strokeWidth={2.5} />
-        </button>
+        <div className="flex flex-col gap-1.5">
+           <button 
+            onClick={onExecute}
+            className="w-9 h-9 bg-slate-900 text-white rounded-xl flex items-center justify-center active:scale-90 transition-all shadow-lg shadow-slate-200"
+            title="Исполнить"
+           >
+            <Check size={16} strokeWidth={3} />
+           </button>
+           <button 
+            onClick={onCancel}
+            className="w-9 h-9 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center active:scale-90 transition-all border border-slate-100"
+            title="Отменить"
+           >
+            <X size={16} strokeWidth={3} />
+           </button>
+        </div>
       </div>
     </div>
   );
